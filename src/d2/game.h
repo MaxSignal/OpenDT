@@ -268,6 +268,16 @@ class Game : public core::Engine {
   bool saveSlot(int k);
   bool loadSlot(int k);                // spec 20 §9.3 (blackout included); false if no file
   std::vector<uint8_t> buildSave() const;
+
+  // ===== 担当別: 2-column list page/cursor memory (spec 23 §2.3), shared by menus and battle =====
+  // Item list memory is shared by the field menu, shops and battle; battle start resets it
+  // (24 §4.1). Magic list memory is one set per character.
+  int itemListPage = 0, itemListPos = 0;
+  int magicListPage[12] = {}, magicListPos[12] = {};
+
+  // ===== 担当別: field menu (spec 23) =====
+  // Warp destination list memory: never reset, survives returning to the title (23 §2.3).
+  int warpListPage = 0, warpListPos = 0;
 };
 
 }  // namespace d2
