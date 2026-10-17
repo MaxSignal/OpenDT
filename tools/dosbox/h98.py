@@ -79,7 +79,8 @@ def main():
     gamedir, outdir, cmds, script = sys.argv[1:5]
     os.makedirs(outdir, exist_ok=True)
     disp = int(os.environ.get('H98_DISPLAY', '99'))
-    with Session(gamedir, [c for c in cmds.split(';') if c], display=disp) as s:
+    with Session(gamedir, [c for c in cmds.split(';') if c], display=disp,
+                 extra_conf=[e for e in os.environ.get('H98_SET', '').split(';') if e]) as s:
         for w in script.split():
             if w.startswith('key:'):
                 s.key(w[4:])

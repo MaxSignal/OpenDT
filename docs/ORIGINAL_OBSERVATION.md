@@ -16,3 +16,12 @@ H98_DISPLAY=101 python3 tools/dosbox/h98.py GAMEDIR OUTDIR "MUSIC -R;RPG" "5 sho
 - D1 はオープニングでキー入力待ちになる。時間は実時間なので、フレーム単位の厳密な比較には向かない
   （画面配置・色・文言・進行の確認に使う）。
 - 実時間で動くのでエミュレータ速度（cycles=max）に依存する。
+
+## 既知の制限
+
+- **D1 の RPG.EXE は DOSBox-X 2024.03.01 で画面が正しく出ない**（`MUSIC -R;RPG` で黒画面、キー入力後に枠内が
+  単色になるだけ）。MUSIC.COM を D2 の版に替えても同じなので、ドライバではなく RPG.EXE 側の描画と
+  エミュレータの相性と考えられる。RPG.EXE 単独では「音楽ドライバーが登録されてません。」で終了する。
+  D1 の検証は参考画面（reference_shots）とデータとの照合で行う。
+- D2 は正常に動作する（dino、keep で確認）。
+- 追加の DOSBox-X 設定は `H98_SET="section property=value;..."` で渡せる。
