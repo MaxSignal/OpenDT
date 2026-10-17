@@ -42,19 +42,22 @@ class Driver {
  private:
   struct Chan {
     // reset at song start
+    // Driver start-up values are 0 (spec 02 §3.2 "ドライバ起動時の初期値はいずれも 0"); the song-start
+    // values are set by initChannel(). This matters before the first song: a fade request writes the
+    // SSG volume registers from these states (spec 02 §3.22), e.g. D1 fading out while no BGM ever played.
     int start = -1, pos = -1;
-    int defLen = 31;
+    int defLen = 0;
     int remain = 0;
-    int octave = 4;
+    int octave = 0;
     int note = 0;
     bool tie = false;
-    uint8_t vol = 12;
-    int envVal = 15;
+    uint8_t vol = 0;
+    int envVal = 0;
     bool envOn = false;
     std::vector<int> callStack;
     std::vector<std::pair<int, int>> loopStack;  // body position, remaining count
-    uint16_t gate = 31;
-    uint8_t q = 8;
+    uint16_t gate = 0;
+    uint8_t q = 0;
     uint8_t detMag = 0;
     bool detNeg = false;
     uint8_t porta = 0;
