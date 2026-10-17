@@ -87,9 +87,9 @@ int  battle(Game& g, int group, int gameOverMode);                // 24（遷移
 
 ## 仮実装の現状
 
-- `events.cpp`: 0x00/0x0B 終了、0x01(+0x65) 文章、0x02/0x03 スイッチ、0x0A 消去、0x10 場所移動、0x13 ウェイト、
-  0x1C/0x1D、0x34/0x35、0x46/0x47/0x48、0x52/0x53 のみ。分岐は解釈せず全部順に実行する。
-  自動イベントの無限ループ対策として最後に 1 VSYNC 待つ（本実装では不要なので消すこと）。
+- `events.cpp`: **本実装済み**（22 章の全コマンド、ラベル、分岐結果表、飛び越し、STOP、ゲームオーバー検査）。
+  単体テスト用に `events.h`（`runScript`・`evalCondition`・`skipTo`・`moveWaitTicks`）を公開している。
+  質問は `docs/questions_d2_events.md`。
 - `menus.cpp`: メニューを開いてすぐ閉じる。店・宿は何もしない。
 - `battle.cpp`: 24 §4.5 の後始末だけをして勝利を返す。
 
