@@ -26,6 +26,10 @@ class MusicPlayer {
   void generate(int16_t* stereo, int frames);
 
   void setVerbose(bool v) { verbose_ = v; }
+  // True when MUSIC.COM of the game contains "Ver 2.21" (spec 02 §4.7).
+  bool version221() const;
+  // True while a BGM is playing (audio-thread state; for tests and tools).
+  bool bgmPlaying() const;
   // Collected log lines (verbose) since last call; thread-safe.
   std::vector<std::string> takeLog();
 

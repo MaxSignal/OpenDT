@@ -55,3 +55,7 @@ if(TEST_SRC)
   add_executable(unit_tests ${TEST_SRC})
   target_link_libraries(unit_tests applib)
 endif()
+
+# MML / SOUND.DAT test tool
+add_executable(mmlplay src/app/mmlplay.cpp)
+target_link_libraries(mmlplay music)
