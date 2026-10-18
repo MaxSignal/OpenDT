@@ -8,6 +8,7 @@
 #include "music/mml.h"
 #include "music/player.h"
 #include "music/sounddat.h"
+#include "music/textscan.h"
 #include "test.h"
 
 #define CHECK_STR(a, b)                                                                                     \
@@ -404,4 +405,226 @@ TEST(music_dc_cut_silence) {
   std::vector<int16_t> buf(2 * 44100);
   p.generate(buf.data(), 44100);
   CHECK_EQ(buf[2 * 44099], 0);
+}
+
+// ---------------------------------------------------------------------------
+// Additional spec-conformance checks (review of spec 02).
+
+static music::Song compileStr(const std::string& s) { return music::compileMml(std::vector<uint8_t>(s.begin(), s.end())); }
+
+static std::vector<uint8_t> partCode(const music::Song& s, int ch) {
+  std::vector<uint8_t> v;
+  for (int p = s.partStart[ch]; p < int(s.code.size()); ++p) {
+    v.push_back(s.code[p]);
+    if (s.code[p] == music::kOpPartEnd) break;
+  }
+  return v;
+}
+
+TEST(music_voice_definition_packing) {
+  // §2.5: SOUND: out of range keeps the current voice; LFO depth keeps only the low 8 bits (s8);
+  // FB is not masked; OP values are shifted without masking; DT2 is min(DT2, 3).
+  auto s = compileStr("SOUND:@1\nLFO:1,2,900,4,8\nOP1:31,0,0,15,0,20,0,1,-3,5\nSOUND:@21\nOP2:1,2,3,4,5,6,7,8,9\n");
+  CHECK_EQ(s.errorCount, 1);
+  const music::Voice& v = s.voices[1];
+  CHECK_EQ(v.wf, 1);
+  CHECK_EQ(v.speed, 2);
+  CHECK_EQ(v.depth, 0x84);
+  CHECK_EQ(v.lfo[0], -15252);  // §2.6 example
+  CHECK_EQ(v.lfo[9], 5952);    // A: -48 * -124
+  CHECK_EQ(v.lfo[12], 0);
+  CHECK_EQ(v.algfb, 0x44);
+  CHECK_EQ(v.dtml[0], 0xD1);  // DT -3 -> 0xD0 | ML 1
+  CHECK_EQ(v.dt2[0], 3);
+  // OP2 (slot index 2) went to voice 1
+  CHECK_EQ(v.ksar[2], 0xC1);
+  CHECK_EQ(v.slrr[2], 0x54);
+  CHECK_EQ(v.dtml[2], 0x98);
+  CHECK_EQ(v.tl[2], 6);
+  CHECK_EQ(v.dt2[2], 0);
+  CHECK_EQ(s.voices[0].algfb, 0);
+}
+
+TEST(music_part_compile_edge_cases) {
+  // §2.9/§2.10/§2.13: O9 discards the rest of the line; {256 = {0; N-300 -> 44 negative;
+  // W8 -> FB 08; C& -> default length then tie; C12 -> whole note then '2' is an error.
+  auto s = compileStr("1:O9 C D\n1:C{256}N-300 W8 C&\n2:C12 E\n3:C1. D\n");
+  CHECK_EQ(s.errorCount, 3);
+  std::vector<uint8_t> p1 = {0xFD, 0x0F, 0xF5, 0x00, 0xF4, 0xFB, 0xF1, 44, 1, 0xFB, 0x08, 0x0F, 0xF3, 0xFD, 0xFF};
+  CHECK(partCode(s, 0) == p1);
+  std::vector<uint8_t> p2 = {0x0B, 0xFD, 0xFF};
+  CHECK(partCode(s, 1) == p2);
+  std::vector<uint8_t> p3 = {0x0B, 0xFD, 0xFF};
+  CHECK(partCode(s, 2) == p3);
+  // empty part line makes the part valid (§2.12); missing part is invalid
+  auto e = compileStr("1:\n");
+  CHECK(e.partValid(0));
+  CHECK(!e.partValid(1));
+  // STR name keeps a trailing '$'; names longer than 12 characters cannot be referenced (§2.7)
+  auto m = compileStr("STR:2$=D\nSTR:ABCDEFGHIJKLMNOP=C\n1:$2$\n2:$ABCDEFGHIJKLMNOP$\n");
+  CHECK_EQ(m.errorCount, 1);
+  CHECK_EQ(partCode(m, 0)[0], music::kOpCall);
+  CHECK_EQ(partCode(m, 1)[0], music::kOpLineEnd);
+  // `:` counts as digit value 10 inside a number (§2.3)
+  auto c = compileStr("1:V12:\n");
+  CHECK_EQ(partCode(c, 0)[1], 130);
+}
+
+TEST(music_ssgenv_edge_cases) {
+  // §2.8: invalid character stops the line; out-of-range number drops the line and a following
+  // `->` appends to the previous definition.
+  auto s = compileStr("SSGENV:@1,2,15;9\nSSGENV:@0,1,2\n->7\n");
+  std::vector<uint8_t> e = {0xFF, 2, 15, 7, 0xFF};
+  CHECK(s.env == e);
+  CHECK_EQ(s.envStart[1], 1);
+}
+
+TEST(music_start_sequence_exact) {
+  // Acceptance 1, full write list of the play operation.
+  Rig r;
+  r.load(std::string(kVoice1) + "1:T120 O4 L8 Q7 C D\n4:V15 O4 C4\n");
+  r.d.play();
+  std::string want = "B0=3C 30=01 34=01 38=01 3C=01 40=14 44=28 48=1E 4C=0A 50=1F 54=1F 58=1F 5C=1F "
+                     "60=00 64=00 68=00 6C=00 70=00 74=00 78=00 7C=00 80=0F 84=0F 88=0F 8C=0F 4C=1A 48=2E A4=22 A0=69";
+  char b[16];
+  for (int ch = 1; ch <= 2; ++ch) {
+    std::snprintf(b, sizeof b, " B%X=00", ch);
+    want += b;
+    for (int g = 0x30; g <= 0x80; g += 0x10)
+      for (int o = 0; o < 16; o += 4) {
+        std::snprintf(b, sizeof b, " %02X=00", g + o + ch);
+        want += b;
+      }
+    std::snprintf(b, sizeof b, " %02X=10", 0x4C + ch);
+    want += b;
+    if (ch == 1) want += " A5=22 A1=69";
+  }
+  want += " A6=22 A2=69 AE=22 AA=69 AC=22 A8=69 AD=22 A9=69 00=DD 01=01 02=DD 03=01 04=DD 05=01 08=00 09=00 0A=00 "
+          "27=40 26=CF 27=7A";
+  CHECK_STR(fmt(r.log), want);
+}
+
+TEST(music_wait_gate) {
+  // §3.7.3: W neither keys off nor on; with Q<8 key off comes floor((N-1)Q/8)+1 ticks after W starts.
+  Rig r;
+  r.load("1:C4 Q4 W4 C4\n");
+  r.d.play();
+  std::vector<std::vector<W>> w(40);
+  for (int t = 1; t <= 33; ++t) w[t] = r.tick();
+  CHECK(hasWrite(w[1], 0x28, 0xF0));
+  CHECK(w[17].empty());
+  CHECK_STR(fmt(w[25]), std::string("28=00"));
+  for (int t = 18; t <= 32; ++t)
+    if (t != 25) CHECK(w[t].empty());
+  CHECK(hasWrite(w[33], 0x28, 0xF0));
+}
+
+TEST(music_stop_writes) {
+  // §3.21
+  for (int ver = 0; ver < 2; ++ver) {
+    Rig r;
+    r.d.setVersion221(ver == 1);
+    r.d.stop();
+    std::string want = "28=02 28=01 28=00 07=BF 0A=00 09=00 08=00";
+    if (ver == 1)
+      for (int x = 0x90; x <= 0x9E; ++x) {
+        char b[16];
+        std::snprintf(b, sizeof b, " %02X=00", x);
+        want += b;
+      }
+    CHECK_STR(fmt(r.log), want);
+  }
+}
+
+TEST(music_sfx_fade_and_priority_only_request) {
+  // Acceptance 12 / §4.5: the fade applies to priority-0 (D part) effects only.
+  Rig r;
+  std::string sd = "SOUND:@0,10,1,1\nVOL1:10,0,1,1\nSOUND:@20,10,1,1\nVOL1:10,0,1,1\n";
+  r.d.setSoundDat(music::parseSoundDat(std::vector<uint8_t>(sd.begin(), sd.end())));
+  r.d.setFade(5);
+  r.d.requestSfx(0, 0);
+  CHECK_EQ(lastWrite(r.vsync(), 0x08), 5);
+  r.d.requestSfx(1, 20);
+  CHECK_EQ(lastWrite(r.vsync(), 0x08), 10);
+  // 01 §8.1: a request without a number changes only the priority.
+  for (int i = 0; i < 10; ++i) r.vsync();
+  CHECK(!r.d.sfxActive());
+  r.d.requestSfx(0, 0);
+  r.vsync();
+  r.d.requestSfx(1, -1);
+  CHECK_EQ(lastWrite(r.vsync(), 0x08), 10);  // the D part effect keeps playing, priority now 1 -> no fade
+  r.d.requestSfx(0, 0);                     // rejected: 0 < 1 while playing
+  auto w = r.vsync();
+  CHECK(!hasWrite(w, 0x07, 0xBE) && !hasWrite(w, 0x07, 0xBC));
+}
+
+TEST(music_ver221_suppression) {
+  // §4.8: under Ver 2.21 the music's SSG A/B writes are discarded while an effect plays; SSG C is not.
+  auto data = agasaSound();
+  if (data.empty()) return;
+  for (int ver = 0; ver < 2; ++ver) {
+    Rig r;
+    r.d.setVersion221(ver == 1);
+    r.d.setSoundDat(music::parseSoundDat(data));
+    r.d.stop();
+    r.load("4:V12 L16 C\n6:V12 L16 C\n");
+    r.d.play();
+    r.d.requestSfx(1, 11);
+    r.vsync();
+    auto w = r.tick();
+    const bool ssgA = lastWrite(w, 0x00) >= 0 || lastWrite(w, 0x08) >= 0;
+    CHECK_EQ(ssgA, ver == 0);
+    CHECK_EQ(lastWrite(w, 0x04), 0xDD);
+    CHECK_EQ(lastWrite(w, 0x0A), 0x0C);
+    if (ver == 1) CHECK_STR(fmt(w), std::string("0A=0C 07=BC 07=B8 04=DD 05=01"));
+  }
+}
+
+#include <dirent.h>
+#include <sys/stat.h>
+
+static void collectMml(const std::string& dir, std::vector<std::string>& out) {
+  DIR* d = opendir(dir.c_str());
+  if (!d) return;
+  while (dirent* e = readdir(d)) {
+    std::string n = e->d_name;
+    if (n == "." || n == "..") continue;
+    std::string p = dir + "/" + n;
+    struct stat st;
+    if (lstat(p.c_str(), &st) != 0) continue;
+    if (S_ISDIR(st.st_mode)) {
+      collectMml(p, out);
+    } else if (S_ISREG(st.st_mode) && n.size() > 4) {
+      std::string ext = n.substr(n.size() - 4);
+      for (auto& ch : ext) ch = music::upper(ch);
+      if (ext == ".MML") out.push_back(p);
+    }
+  }
+  closedir(d);
+}
+
+TEST(music_compile_all_samples) {
+  // Acceptance 14: every sample *.MML compiles without errors.
+  std::vector<std::string> files;
+  collectMml("/home/claude/samples", files);
+  if (files.empty()) {
+    std::printf("  (samples missing, skipped)\n");
+    return;
+  }
+  int bad = 0;
+  for (auto& f : files) {
+    std::vector<uint8_t> text;
+    FILE* fp = std::fopen(f.c_str(), "rb");
+    if (!fp) continue;
+    int c;
+    while ((c = std::fgetc(fp)) != EOF) text.push_back(uint8_t(c));
+    std::fclose(fp);
+    auto s = music::compileMml(text);
+    if (s.errorCount) {
+      if (bad < 5) std::fprintf(stderr, "  %s: %s\n", f.c_str(), s.errors.empty() ? "" : s.errors[0].c_str());
+      ++bad;
+    }
+  }
+  CHECK(files.size() > 900);
+  CHECK_EQ(bad, 0);
 }
