@@ -4,7 +4,7 @@
 
 ## クリーンルーム規則（厳守）
 
-1. 使ってよい情報: `/home/claude/work/spec/dante98_cleanroom_spec/` の仕様書一式、サンプルゲームのデータファイル
+1. 使ってよい情報: `/home/claude/work/spec11/dante98_cleanroom_spec/` の仕様書一式（v1.1。v1.0 は `/home/claude/work/spec/`）、サンプルゲームのデータファイル
    （`/home/claude/samples/`）、DOSBox 等のエミュレータで原本を動かして観察した結果、汎用ライブラリ（ymfm、東雲フォント）。
 2. 禁止: RPG.EXE・MUSIC.COM などの実行ファイルの逆アセンブル・逆コンパイル・バイナリ解析（仕様が許可する
    版判別のためのバイト読み取りと版文字列検索のみ可）。インターネット上の Dante98 / MUSIC.COM / OpenDante98 に

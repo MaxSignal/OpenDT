@@ -3,7 +3,7 @@
 # Prints one line per game: name engine matched/total, plus any differing shots.
 BIN=${BIN:-/home/claude/dante/build/dante98cr-headless}
 OUT=${OUT:-/tmp/claude-0/allref}
-REF=${REF:-/home/claude/work/spec/dante98_cleanroom_spec/reference_shots}
+REF=${REF:-/home/claude/work/spec11/dante98_cleanroom_spec/reference_shots}
 SCRIPT="60 shot:01_title 30 z 30 z 150 shot:02_start z 70 z 70 shot:03_after_ok x 60 shot:04_menu x 60 r*40 l*40 shot:05_walk"
 $BIN --games /home/claude/samples -o /tmp/claude-0 2>/dev/null | while IFS=$'\t' read kind root; do
   rel=${root#/home/claude/samples/}
