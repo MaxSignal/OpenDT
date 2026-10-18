@@ -100,7 +100,7 @@ void Interp::gameOverCheck() {
   if (!g.gameOver()) return;
   g.openMessage();
   g.messageLine(0, g.db.wordAt(0x653));
-  g.keyWaitMark();
+  g.keyWaitMark();  // PROVISIONAL(Q8): §5.1 says only "キー待ち（§6.3）"; the marked variant is used
   throw ReturnToTitle();
 }
 
@@ -597,8 +597,7 @@ bool Interp::step(int& result) {
       G.st.escMap = core::rd16(a);
       G.st.escX = a[2];
       G.st.escY = a[3];
-      std::memcpy(G.st.escBgm, G.st.curBgm, 8);
-      G.st.escBgm[8] = 0;
+      std::memcpy(G.st.escBgm, G.st.curBgm, 8);  // the 8 name characters only (spec 22 §8 0x30)
       break;
 
     case 0x31: G.st.noEscape = a[0] == 0 ? 1 : 0; break;
