@@ -905,3 +905,64 @@ TEST(d2ev_more_conditions) {
   uint8_t shop[5] = {23, 0, 0, 0, 0};
   CHECK(d2::evalCondition(g, shop));
 }
+
+TEST(d2ev_warp_bytes_v11) {
+  // spec 22 §8 0x2D/0x2E (v1.1): adding does not clear the slot (BGM bytes 9..12 keep old values),
+  // the first 8 BGM bytes are the current name zero-filled, deleting does not clear the freed slot.
+  Fixture f;
+  f.g.st.warpCount = 0;
+  for (auto& w : f.g.st.warps) std::memset(&w, 0xAB, sizeof(w));
+  std::memset(f.g.st.curBgm, 0, 9);
+  std::memcpy(f.g.st.curBgm, "TOWN", 4);
+  Cmd c;
+  c.op(0x2D, 0, {5, 0, 10, 11}).op(0x2D, 0, {6, 0, 12, 13});
+  f.run(c.done());
+  CHECK_EQ(f.g.st.warpCount, 2);
+  const d2::WarpPoint& w0 = f.g.st.warps[0];
+  CHECK_EQ(w0.map, 5);
+  CHECK_EQ(w0.x, 10);
+  CHECK_EQ(w0.y, 11);
+  CHECK(std::memcmp(w0.bgm, "TOWN\0\0\0\0", 8) == 0);
+  for (int i = 8; i < 12; ++i) CHECK_EQ(uint8_t(w0.bgm[i]), 0xAB);
+  // update keeps bytes 9..12 as well
+  std::memcpy(f.g.st.curBgm, "CASTLE01", 8);
+  Cmd u;
+  u.op(0x2D, 0, {5, 0, 20, 21});
+  f.run(u.done());
+  CHECK(std::memcmp(f.g.st.warps[0].bgm, "CASTLE01", 8) == 0);
+  CHECK_EQ(uint8_t(f.g.st.warps[0].bgm[8]), 0xAB);
+  // delete map 5: entry 1 moves to 0, slot 1 keeps the old last entry
+  Cmd d;
+  d.op(0x2E, 0, {5, 0});
+  f.run(d.done());
+  CHECK_EQ(f.g.st.warpCount, 1);
+  CHECK_EQ(f.g.st.warps[0].map, 6);
+  CHECK_EQ(f.g.st.warps[1].map, 6);
+  CHECK_EQ(f.g.st.warps[1].x, 12);
+}
+
+TEST(d2ev_choice_width_ignores_dot) {
+  // spec 22 §8 0x09 step 4 (v1.1): widths are measured without the leading '.'.
+  // Items "AB" and ".CDEFG" (cancel): w = 5 -> x = 0x200 - 40 = 0x1D8.
+  MapFixture f;
+  f.host.limit = 3000;
+  int left = -1, outside = -1;
+  f.host.onVsync = [&](const core::Screen& s) {
+    if (f.host.frame == 20) {
+      left = s.pix[0x60 * 640 + 0x1D8];      // outer border (color 14) of the left edge
+      outside = s.pix[0x60 * 640 + 0x1DA];   // third border line (color 15)
+    }
+  };
+  f.host.script = [](long fr) {
+    core::InputState s;
+    s.cancel = fr >= 30 && fr < 34;
+    return s;
+  };
+  Cmd c;
+  c.op(0x09, 0).op(0x69, 0, {'A', 'B'}).op(0x69, 0, {'.', 'C', 'D', 'E', 'F', 'G'});
+  c.op(0x6A, 0).op(0x04, 1, {0, 1}).op(0x63, 1).op(0x6B, 0).op(0x04, 1, {0, 2}).op(0x63, 1).op(0x6E, 0);
+  f.run(c.done());
+  CHECK_EQ(left, 14);     // left edge exactly at x = 0x1D8 (with the '.' counted it would be 0x1D0)
+  CHECK_EQ(outside, 15);
+  CHECK_EQ(f.g.vars[0], 2);  // cancel selects the '.' item
+}

@@ -37,7 +37,7 @@ bool memberCond(Game& g, int spec, F pred) {
     const bool any = spec == 0x0C;
     for (int k = 0; k < g.st.partyCount && k < 5; ++k) {
       const int c = g.st.party[k];
-      if (c > 11) continue;  // PROVISIONAL(Q3): invalid party slots are skipped
+      if (c > 11) continue;  // invalid party slots are skipped (spec 22 §7.2, v1.1)
       const bool r = pred(g.members[c]);
       if (any && r) return true;
       if (!any && !r) return false;
@@ -45,6 +45,16 @@ bool memberCond(Game& g, int spec, F pred) {
     return !any;  // empty party: "anyone" false, "all" true
   }
   return false;
+}
+
+// Warp point BGM: copy the current BGM name (up to 8 bytes) and zero-fill the rest of the first 8
+// bytes; bytes 9..12 are left unchanged (spec 22 §8 0x2D, v1.1).
+void setWarpBgm(WarpPoint& wp, const char* cur) {
+  bool end = false;
+  for (int i = 0; i < 8; ++i) {
+    if (!end && cur[i] == 0) end = true;
+    wp.bgm[i] = end ? 0 : cur[i];
+  }
 }
 
 bool comparePos(int how, int x, int y, int v) {
@@ -100,7 +110,7 @@ void Interp::gameOverCheck() {
   if (!g.gameOver()) return;
   g.openMessage();
   g.messageLine(0, g.db.wordAt(0x653));
-  g.keyWaitMark();  // PROVISIONAL(Q8): §5.1 says only "キー待ち（§6.3）"; the marked variant is used
+  g.keyWaitMark();  // marked key wait (spec 22 §5.1 step 2-3, v1.1)
   throw ReturnToTitle();
 }
 
@@ -125,8 +135,9 @@ void Interp::text(int n) {
 int Interp::choice(const std::vector<std::string>& items, int cancelIdx) {
   int wbytes = 0;
   for (auto& s : items) {
-    // PROVISIONAL(Q1): width counts the stored bytes including a leading '.' of the cancel item.
-    const int len = int(std::min<size_t>(s.size(), 32));
+    // Width is measured after removing a leading '.' from every item (spec 22 §8 0x09 step 4, v1.1).
+    const size_t raw = (!s.empty() && s[0] == '.') ? s.size() - 1 : s.size();
+    const int len = int(std::min<size_t>(raw, 32));
     wbytes = std::max(wbytes, len);
   }
   const int n = int(items.size());
@@ -562,19 +573,18 @@ bool Interp::step(int& result) {
         if (wp.map == mapNo) {
           wp.x = a[2];
           wp.y = a[3];
-          // PROVISIONAL(Q4): only the 8 name bytes are replaced.
-          std::memcpy(wp.bgm, G.st.curBgm, 8);
+          setWarpBgm(wp, G.st.curBgm);
           done = true;
           break;
         }
       }
       if (!done && G.st.warpCount < 30) {
+        // The slot is not cleared first: BGM bytes 9..12 keep their old values (spec 22 §8 0x2D, v1.1).
         WarpPoint& wp = G.st.warps[G.st.warpCount++];
-        std::memset(&wp, 0, sizeof(wp));
         wp.map = mapNo;
         wp.x = a[2];
         wp.y = a[3];
-        std::memcpy(wp.bgm, G.st.curBgm, 8);
+        setWarpBgm(wp, G.st.curBgm);
       }
     } break;
 
@@ -583,9 +593,8 @@ bool Interp::step(int& result) {
       const int cnt = std::min<int>(G.st.warpCount, 30);
       for (int k = 0; k < cnt; ++k)
         if (G.st.warps[k].map == mapNo) {
+          // Compact only; the freed last slot keeps its contents (spec 22 §8 0x2E, v1.1).
           for (int j = k; j + 1 < cnt; ++j) G.st.warps[j] = G.st.warps[j + 1];
-          // PROVISIONAL(Q4): the freed last entry is cleared.
-          std::memset(&G.st.warps[cnt - 1], 0, sizeof(WarpPoint));
           --G.st.warpCount;
           break;
         }
