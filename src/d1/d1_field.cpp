@@ -904,7 +904,8 @@ bool Game::runEvent(int o) {
           case 9: {
             if ((eventScreen(cp, E) & 0xFFFF) != curScreen) break;
             Obj& ob = objs_[o];
-            if (ob.x == kErased) break;
+            // Spec 11 §8.2 0x65 '9': the window is closed even if the object was already erased
+            // (an erased object has x = 0xFF, so the cell steps touch nothing).
             if (ob.gfx >= 0x40 && ob.move == 0 && ob.x < 20 && ob.y < 12)
               cells_[ob.y * 20 + ob.x] = db.mapCell(curScreen, ob.x, ob.y);
             msgClose();

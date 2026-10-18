@@ -26,6 +26,14 @@ class Battle {
  public:
   Battle(Game& g) : g(g) {}
   int run(int group, bool eventBattle);
+  int probeEnemy(const BEnemy& e, int initTarget, int* target) {
+    en[0] = e;
+    k = 1;
+    curTarget = initTarget;
+    decideEnemy(4);
+    *target = curTarget;
+    return curAct;
+  }
 
  private:
   Game& g;
@@ -668,8 +676,8 @@ void Battle::decideEnemy(int a) {
     }
     if (!ok) {
       if (tries > 10) {
-        curAct = 0x39;
-        break;
+        curAct = 0x39;  // spec 12 §10.3 step 4: ends here (steps 5-6 do not apply)
+        return;
       }
       continue;
     }
@@ -1353,6 +1361,11 @@ int Battle::run(int group, bool eventBattle) {
     }
     roundEnd();
   }
+}
+
+int Game::testEnemyDecision(const BEnemy& e, int initTarget, int* target) {
+  Battle b(*this);
+  return b.probeEnemy(e, initTarget, target);
 }
 
 int Game::battle(int group, bool eventBattle) {

@@ -111,9 +111,13 @@ class Game : public core::Engine {
 
   // battle (exposed for tests)
   int battle(int group, bool eventBattle);
+  // Test hook: runs the enemy action selection (spec 12 §10.3) for a lone enemy slot 0 (combatant 4)
+  // with the given initial "current target"; returns the chosen action and stores the target.
+  int testEnemyDecision(const BEnemy& e, int initTarget, int* target);
 
  private:
   friend struct BattleCtx;
+  friend struct D1Test;  // unit-test access (tests/test_d1.cpp)
   core::Host& host_;
   core::StartOptions opt_;
   core::Screen scr_;
