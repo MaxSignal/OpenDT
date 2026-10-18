@@ -720,11 +720,16 @@ bool Game::npcTryStep(int i, int d, bool fast) {
         }
       }
     }
+    // Step 4.4 decides the result on its own ("そうでなければ 0"): a pass-through event may step
+    // onto the hero even when a parked vehicle shares the hero's cell (step 4.5 is skipped).
+    bool decided = false;
     if (!res && tx == st.x && ty == st.y && (st.hidden == 0 || !st.eventRunning) &&
-        (st.layer == 0x60 || e->layer == st.layer))
+        (st.layer == 0x60 || e->layer == st.layer)) {
       res = priority == 0 ? 2 : 0;
-    if (!res && st.shipMap == st.curMap && st.shipX == tx && st.shipY == ty) res = 1;
-    if (!res && st.airMap == st.curMap && st.airX == tx && st.airY == ty) res = 1;
+      decided = true;
+    }
+    if (!res && !decided && st.shipMap == st.curMap && st.shipX == tx && st.shipY == ty) res = 1;
+    if (!res && !decided && st.airMap == st.curMap && st.airX == tx && st.airY == ty) res = 1;
   }
   if (!st.eventRunning && moveType >= 5 && res == 2) {
     e->timer = uint8_t(rng.next() % 4 + 20);

@@ -289,3 +289,671 @@ TEST(d2_tone_gray) {
   CHECK_EQ(g->frameCounter - f0, 18u);
   CHECK_EQ(g->tone, 0);
 }
+
+// =============================================================================================
+// Synthetic field tests (spec 21): an in-memory map built on top of a sample's database.
+namespace {
+struct RecHost : core::Host {
+  std::vector<core::InputState> script;  // input per VSYNC (empty after the end)
+  size_t frame = 0;
+  std::vector<std::string> played;      // PlayFile paths
+  void vsync(const core::Screen&) override {}
+  core::InputState input() override { return frame < script.size() ? script[frame++] : core::InputState{}; }
+  void sound(const core::SoundRequest& r) override {
+    if (r.kind == core::SoundRequest::PlayFile) played.push_back(r.path);
+  }
+};
+
+const std::string kSynthRoot = kSamples + "ring/ring";
+
+// n x n map of chip 4 (attribute 0x20), hero at (10,10) facing down, no events, no vehicles.
+std::unique_ptr<d2::Game> synthGame(core::Host& host, d2::Build b, int n = 32, bool loop = false) {
+  core::StartOptions opt;
+  auto g = std::make_unique<d2::Game>(host, kSynthRoot, opt);
+  g->build = b;
+  d2::MapData& m = g->map;
+  std::memset(&m.hdr, 0, sizeof(m.hdr));
+  m.hdr.size = uint8_t(n);
+  m.hdr.loop = loop ? 1 : 0;
+  m.hdr.encRate = 20;
+  m.hdr.outerChip = 5;
+  for (int y = 0; y < d2::kMapDim; ++y)
+    for (int x = 0; x < d2::kMapDim; ++x) m.grid[y][x] = (x < n && y < n) ? 4 : 5;
+  std::memset(m.zones, 0xFF, sizeof(m.zones));
+  std::fill(m.eventArea.begin(), m.eventArea.end(), 0);
+  for (auto& e : m.events) e = nullptr;
+  std::memset(g->chips.attr, 0x20, sizeof(g->chips.attr));
+  for (int i = 0; i < 4; ++i) g->chips.attr[i] |= 0x80;
+  std::memset(g->chips.enc, 1, sizeof(g->chips.enc));
+  std::memset(g->upperMap, 0xFF, sizeof(g->upperMap));
+  std::memset(g->lowerMap, 0xFF, sizeof(g->lowerMap));
+  d2::StateBlock& st = g->st;
+  st.curMap = st.loadedMap = 0;
+  st.x = st.y = 10;
+  st.dir = 2;
+  st.vehicle = 0;
+  st.heroSprite = 0;
+  st.hidden = 0;
+  st.shipMap = st.airMap = 0xFFFF;
+  st.noEncounter = 0;
+  st.eventRunning = 0;
+  st.poison = 0;
+  g->enterMap();
+  return g;
+}
+
+// Event i at (x,y) with one page (no condition, graphic 0x100, empty script).
+d2::EventRec* addEvent(d2::Game& g, int i, int x, int y, int moveType, int trigger, int priority) {
+  const int off = 2 + i * 0x80;
+  auto* e = reinterpret_cast<d2::EventRec*>(&g.map.eventArea[off]);
+  std::memset(e, 0, sizeof(*e));
+  e->x = uint8_t(x);
+  e->y = uint8_t(y);
+  e->layer = 0x20;
+  e->selfNo = uint16_t(i);
+  e->timer = 10;
+  d2::EventPage& p = e->pages[0];
+  p.gfx = 0x100;
+  p.moveType = uint8_t(moveType);
+  p.trigger = uint8_t(trigger);
+  p.priority = uint8_t(priority);
+  p.script = uint16_t(off + 0x62 + 2);
+  core::wr16(&g.map.eventArea[off + 0x62], 1);  // empty script: length 1, byte 0
+  g.map.events[i] = e;
+  return e;
+}
+}  // namespace
+
+// 21 §8.3 / acceptance 8: random NPC (type 1) stops 27..36 cycles between steps, deterministic
+// for a fixed seed.
+TEST(d2_npc_random_timing) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  std::vector<std::pair<int, int>> trace[2];
+  for (int run = 0; run < 2; ++run) {
+    auto g = synthGame(host, d2::Build::B9710, 32, true);
+    g->rng.seed(7);
+    d2::EventRec* e = addEvent(*g, 0, 20, 20, 1, 0, 1);
+    g->updatePages();
+    int lastStart = -1, starts = 0;
+    int stopped = 0;
+    for (int c = 0; c < 2000; ++c) {
+      const uint8_t before = e->prog;
+      g->npcCycle();
+      if (before == 0 && e->prog == 0) ++stopped;
+      if (before == 0 && e->prog == 8) {
+        if (lastStart >= 0) {
+          // 4 moving cycles + (36 - timer) stopped cycles, timer = rand % 10
+          CHECK(c - lastStart >= 4 + 27);
+          CHECK(c - lastStart <= 4 + 36);
+          CHECK(stopped + 1 >= 27 && stopped + 1 <= 36);
+        }
+        lastStart = c;
+        stopped = 0;
+        ++starts;
+        trace[run].push_back({e->x, e->y});
+      }
+    }
+    CHECK(starts > 40);
+  }
+  CHECK(trace[0] == trace[1]);
+}
+
+// 21 §8.3: up/down round trip moves every 8 stopped cycles; both directions blocked -> timer 0.
+TEST(d2_npc_round_trip) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710, 32, true);
+  d2::EventRec* e = addEvent(*g, 0, 20, 20, 3, 0, 1);
+  g->updatePages();
+  int lastStart = -1, n = 0;
+  for (int c = 0; c < 400; ++c) {
+    const uint8_t before = e->prog;
+    g->npcCycle();
+    if (before == 0 && e->prog == 8) {
+      CHECK_EQ(e->timer, 28);
+      if (lastStart >= 0) CHECK_EQ(c - lastStart, 4 + 8);
+      lastStart = c;
+      ++n;
+    }
+  }
+  CHECK(n >= 30);
+  // block every edge of the NPC's cell
+  e->prog = 0;
+  std::memset(e->dirProg, 0, 4);
+  g->map.grid[e->y][e->x] = 6;
+  g->chips.attr[6] = 0x2F;
+  e->timer = 35;
+  g->npcCycle();
+  CHECK_EQ(e->prog, 0);
+  CHECK_EQ(e->timer, 0);
+}
+
+// 20 §10.3 C: a random NPC that fails to move keeps the tried direction on old builds only.
+TEST(d2_build_c_random_fail_direction) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  for (int old = 0; old < 2; ++old) {
+    auto g = synthGame(host, old ? d2::Build::B9608 : d2::Build::B9710);
+    d2::EventRec* e = addEvent(*g, 0, 20, 20, 1, 0, 1);
+    g->updatePages();
+    g->map.grid[20][20] = 6;
+    g->chips.attr[6] = 0x2F;  // all edges blocked
+    // find a seed whose attempt tries a direction other than "down"
+    uint32_t seed = 1;
+    int tried = 2;
+    for (;; ++seed) {
+      core::Rng r;
+      r.seed(seed);
+      const int r1 = r.next();
+      tried = (r1 & 3) ? (r.next() & 3) * 2 + 2 : 2;
+      if (tried != 2) break;
+    }
+    g->rng.seed(seed);
+    e->dir = 2;
+    e->timer = 35;
+    g->npcCycle();
+    CHECK_EQ(e->prog, 0);
+    CHECK_EQ(e->dir, old ? tried : 2);
+  }
+}
+
+// 20 §10.3 B: sea rule for NPCs (old builds always, new builds only when chip 0 is 0x0F).
+TEST(d2_build_b_sea_rule) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  struct Case {
+    d2::Build b;
+    uint8_t attr0;
+    bool moves;
+  } cases[] = {{d2::Build::B9606, 0xA0, false}, {d2::Build::B9710, 0xA0, true}, {d2::Build::B9710, 0xAF, false}};
+  for (auto& c : cases) {
+    auto g = synthGame(host, c.b);
+    d2::EventRec* e = addEvent(*g, 0, 20, 20, 0, 0, 1);
+    g->map.grid[20][20] = 0;  // sea under the NPC, land (chip 4) to the right
+    g->chips.attr[0] = c.attr0;
+    g->updatePages();
+    CHECK_EQ(g->npcTryStep(0, 6, false), c.moves);
+    CHECK_EQ(e->dir, 6);
+  }
+}
+
+// 21 §8.4 step 4.4: a pass-through NPC may step onto the hero even when the hero stands on the
+// parked airship; a priority-0 NPC is blocked by the hero (result 2, approaching -> pending).
+TEST(d2_npc_onto_hero_on_airship) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  g->st.airMap = 0;
+  g->st.airX = 10;
+  g->st.airY = 10;
+  addEvent(*g, 0, 11, 10, 0, 0, 1);
+  addEvent(*g, 1, 9, 10, 5, 1, 0);
+  g->updatePages();
+  g->rng.seed(3);
+  CHECK(!g->npcTryStep(1, 6, false));  // priority 0, approaching: touches the hero
+  CHECK_EQ(g->st.pendingKind, 1);
+  CHECK_EQ(g->st.pendingEvent, 1);
+  CHECK(g->npcTryStep(0, 4, false));  // priority 1 onto the hero's cell (and the airship's)
+  CHECK_EQ(g->map.events[0]->x, 10);
+  // the airship elsewhere still blocks
+  g->st.airX = 10;
+  g->st.airY = 8;
+  addEvent(*g, 3, 10, 7, 0, 0, 1);
+  g->updatePages();
+  CHECK(!g->npcTryStep(3, 2, false));
+}
+
+// 21 §6.1/§6.2 / acceptance 6: a step takes 4 hero cycles (2 when fast); edge bits and layers
+// block; non-loop edges block; loop maps wrap.
+TEST(d2_hero_step) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  const int vx0 = g->viewX;
+  g->heroStep(6, false);
+  CHECK_EQ(g->st.scroll, 8);
+  CHECK_EQ(g->st.x, 11);
+  int calls = 0;
+  while (g->st.scroll) {
+    g->heroProcess();
+    ++calls;
+  }
+  CHECK_EQ(calls, 4);
+  CHECK_EQ(g->viewX, vx0 + 1);
+  CHECK_EQ(g->st.steps, 1);
+  g->heroStep(6, true);
+  calls = 0;
+  while (g->st.scroll) {
+    g->heroProcess();
+    ++calls;
+  }
+  CHECK_EQ(calls, 2);
+  // edge bit on the current cell (right side)
+  g->map.grid[12][12] = 6;
+  g->chips.attr[6] = 0x24;
+  g->st.x = g->st.y = 12;
+  g->enterMap();
+  g->heroStep(6, false);
+  CHECK_EQ(g->st.scroll, 0);
+  CHECK_EQ(g->st.dir, 6);
+  g->heroStep(2, false);  // other edges are open
+  CHECK_EQ(g->st.scroll, 8);
+  while (g->st.scroll) g->heroProcess();
+  // upper-layer chip next to a lower-layer hero blocks; a connector cell lets it through
+  g->map.grid[13][13] = 7;
+  g->chips.attr[7] = 0x00;
+  g->heroStep(6, false);
+  CHECK_EQ(g->st.scroll, 0);
+  g->map.grid[13][12] = 8;
+  g->chips.attr[8] = 0x60;
+  g->enterMap();
+  CHECK_EQ(g->st.layer, 0x60);
+  g->heroStep(6, false);
+  CHECK_EQ(g->st.scroll, 8);
+  CHECK_EQ(g->st.layer, 0x00);
+  while (g->st.scroll) g->heroProcess();
+  // non-loop edge
+  g->st.x = 31;
+  g->st.y = 5;
+  g->enterMap();
+  g->heroStep(6, false);
+  CHECK_EQ(g->st.scroll, 0);
+  // loop map wraps
+  auto h = synthGame(host, d2::Build::B9710, 32, true);
+  h->st.x = 31;
+  h->enterMap();
+  CHECK_EQ(h->viewX, 22);
+  h->heroStep(6, false);
+  CHECK_EQ(h->st.x, 0);
+  while (h->st.scroll) h->heroProcess();
+  CHECK_EQ(h->viewX, 23);
+  h->st.x = 0;
+  h->st.y = 0;
+  h->enterMap();
+  CHECK_EQ(h->viewX, 23);
+  CHECK_EQ(h->viewY, 26);
+}
+
+// 21 §6.4 / acceptance 7: poison costs 1 HP per walking step (never below 1) and flashes T=160.
+TEST(d2_poison_walk) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  g->st.partyCount = 2;
+  g->st.party[0] = 0;
+  g->st.party[1] = 1;
+  g->members[0].status[0] = 1;
+  g->members[0].hp = 5;
+  g->members[1].status[0] = 1;
+  g->members[1].hp = 1;
+  g->updatePoison();
+  CHECK_EQ(g->st.poison, 1);
+  g->tone = 100;
+  g->heroStep(2, false);
+  g->heroProcess();  // 8
+  g->heroProcess();  // 16
+  CHECK_EQ(g->tone, 100);
+  g->heroProcess();  // 24
+  CHECK_EQ(g->tone, 160);
+  CHECK_EQ(g->members[0].hp, 4);
+  CHECK_EQ(g->members[1].hp, 1);
+  g->heroProcess();  // 32: arrival
+  CHECK_EQ(g->tone, 100);
+  CHECK_EQ(g->st.scroll, 0);
+  // fast steps never pass 24: no damage
+  g->heroStep(2, true);
+  while (g->st.scroll) g->heroProcess();
+  CHECK_EQ(g->members[0].hp, 4);
+}
+
+// 21 §10.1 / acceptance 12: no encounter in the first 4 steps at rate 20 (no random number used),
+// none when switched off, none on chips of kind 0, none on the ship's cell.
+TEST(d2_encounter_rules) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  uint8_t* z = g->map.zones;  // zone (0,0): group 0 always
+  core::wr16(z, 0xFFFF);
+  z[16] = 0;
+  g->rng.seed(1);
+  for (int s = 1; s <= 4; ++s) {
+    g->st.steps = uint16_t(s);
+    CHECK_EQ(g->encounterCheck(), 0);
+  }
+  CHECK_EQ(g->rng.state, 1u);
+  // step 5 at rate 20: one random number, 1/40; pick a seed that does not hit
+  uint32_t seed = 1;
+  for (;; ++seed) {
+    core::Rng r;
+    r.seed(seed);
+    if (r.next() % 40 != 0) break;
+  }
+  g->rng.seed(seed);
+  g->st.steps = 5;
+  CHECK_EQ(g->encounterCheck(), 0);
+  core::Rng r;
+  r.seed(seed);
+  r.next();
+  CHECK_EQ(g->rng.state, r.state);
+  // switched off / chip kind 0 / no candidates (switch condition off)
+  g->map.hdr.encRate = 0;  // rate 0 would hit every step
+  g->st.noEncounter = 1;
+  CHECK_EQ(g->encounterCheck(), 0);
+  g->st.noEncounter = 0;
+  g->chips.enc[4] = 0;
+  CHECK_EQ(g->encounterCheck(), 0);
+  g->chips.enc[4] = 1;
+  core::wr16(z, 5);
+  CHECK_EQ(g->encounterCheck(), 0);
+  core::wr16(z, 0xFFFF);
+  // the ship on the hero's cell prevents it (steps are not reset)
+  g->st.shipMap = 0;
+  g->st.shipX = g->st.x;
+  g->st.shipY = g->st.y;
+  g->st.steps = 9;
+  const uint32_t before = g->rng.state;
+  CHECK_EQ(g->encounterCheck(), 0);
+  CHECK_EQ(g->st.steps, 9);
+  CHECK_EQ(g->rng.state, before);
+}
+
+// 21 §7.1 / acceptance 9: pages 1..3 without condition are never chosen; switch changes are
+// visible immediately; §7.2 page -1 removes the event from the position maps.
+TEST(d2_page_selection) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  d2::EventRec* e = addEvent(*g, 0, 12, 12, 0, 0, 0);
+  for (int p = 1; p < 4; ++p) e->pages[p] = e->pages[0];
+  g->updatePages();
+  CHECK_EQ(g->activePage(0), 0);
+  CHECK_EQ(g->lowerMap[12][12], 0);
+  e->pages[2].cond = 1;
+  e->pages[2].condSwitch = 7;
+  CHECK_EQ(g->activePage(0), 0);
+  g->switches[7] = 1;
+  CHECK_EQ(g->activePage(0), 2);
+  e->pages[0].cond = 1;
+  e->pages[0].condSwitch = 8;
+  g->switches[7] = 0;
+  CHECK_EQ(g->activePage(0), -1);
+  g->updatePages();
+  CHECK_EQ(g->lowerMap[12][12], 0xFD);
+  CHECK_EQ(e->active, 0);
+  CHECK_EQ(e->page1, 0);
+  g->switches[8] = 1;
+  g->updatePages();
+  CHECK_EQ(g->lowerMap[12][12], 0);
+  CHECK_EQ(e->page1, 1);
+  CHECK_EQ(e->active, 1);
+}
+
+// 20 §10.3 A / 21 §7.5: erasing an event registered in both maps (connector chip).
+TEST(d2_build_a_erase_both_maps) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  for (int old = 0; old < 2; ++old) {
+    auto g = synthGame(host, old ? d2::Build::B9608 : d2::Build::B9703);
+    addEvent(*g, 0, 12, 12, 0, 0, 0);
+    g->updatePages();
+    g->upperMap[12][12] = 0;
+    g->eraseEvent(0, true);
+    CHECK_EQ(g->lowerMap[12][12], 0xFD);
+    CHECK_EQ(g->upperMap[12][12], old ? 0 : 0xFD);
+    CHECK_EQ(g->map.events[0]->page1, 9);
+    g->updatePages();  // permanently erased: never re-registered
+    CHECK_EQ(g->lowerMap[12][12], 0xFD);
+  }
+}
+
+// 21 §9.1 / acceptance 11: boarding the ship switches to the ship BGM; leaving moves one step
+// onto land and restores the BGM.
+TEST(d2_ship_board_leave) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  std::memset(g->st.curBgm, 0, 9);
+  std::memset(g->st.shipBgm, 0, 9);
+  std::strcpy(g->st.curBgm, "FIELD");
+  std::strcpy(g->st.shipBgm, "SHIP");
+  g->map.grid[10][10] = 0;  // hero (and ship) on the sea, land to the right
+  g->enterMap();
+  g->st.shipMap = 0;
+  g->st.shipX = 10;
+  g->st.shipY = 10;
+  CHECK_EQ(g->sameLayerValue(9, 6), d2::kShipValue);
+  g->boardShip(true);
+  CHECK_EQ(g->st.vehicle, 1);
+  CHECK_EQ(g->st.heroSprite, 8);
+  CHECK_EQ(g->st.shipMap, 0xFFFF);
+  CHECK(std::string(g->st.curBgm) == "SHIP");
+  CHECK(std::string(g->st.prevBgm) == "FIELD");
+  CHECK(!host.played.empty() && host.played.back() == "DAT_BGM/SHIP.MML");
+  // the ship cannot enter land chips
+  g->heroStep(2, false);
+  CHECK_EQ(g->st.scroll, 0);
+  g->map.grid[11][10] = 1;
+  g->heroStep(2, false);
+  CHECK_EQ(g->st.scroll, 8);
+  while (g->st.scroll) g->heroProcess();
+  CHECK_EQ(g->st.steps, 0);  // no step count on vehicles
+  g->st.y = 10;
+  g->enterMap();
+  g->st.dir = 6;
+  CHECK(g->canDisembarkShip(6));
+  g->leaveShip();
+  CHECK_EQ(g->st.vehicle, 0);
+  CHECK_EQ(g->st.shipMap, 0);
+  CHECK_EQ(g->st.shipX, 10);
+  CHECK_EQ(g->st.shipY, 10);
+  CHECK_EQ(g->st.x, 11);
+  CHECK_EQ(g->st.scroll, 8);
+  CHECK(std::string(g->st.curBgm) == "FIELD");
+  CHECK(std::string(g->st.prevBgm) == "SHIP");
+  CHECK(host.played.back() == "DAT_BGM/FIELD.MML");
+}
+
+// 21 §9.2/§9.3 / acceptance 11: take-off and landing animations are 9 frames x 3 VSYNC, landing
+// on a blocked cell climbs back up, the shadow shows 2 of every 3 VSYNCs.
+TEST(d2_airship) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  std::memset(g->st.airBgm, 0, 9);
+  std::strcpy(g->st.airBgm, "AIR");
+  std::memset(g->st.curBgm, 0, 9);
+  std::strcpy(g->st.curBgm, "FIELD");
+  g->st.airMap = 0;
+  g->st.airX = 10;
+  g->st.airY = 10;
+  g->st.hidden = 1;
+  uint32_t f0 = g->frameCounter;
+  g->takeOff();
+  CHECK_EQ(g->frameCounter - f0, 24u);
+  CHECK_EQ(g->st.vehicle, 2);
+  CHECK_EQ(g->st.heroSprite, 0x10);
+  CHECK_EQ(g->st.airMap, 0xFFFF);
+  CHECK_EQ(g->st.dir, 6);
+  CHECK_EQ(g->st.hidden, 0);
+  CHECK(std::string(g->st.curBgm) == "AIR");
+  int shown = 0;
+  for (int i = 0; i < 9; ++i) {
+    g->vsync();
+    if (g->scr.textAttr[12][39] == core::kTextBlack) ++shown;
+  }
+  CHECK_EQ(shown, 6);
+  // flying: fast steps, no passability checks
+  g->map.grid[10][11] = 6;
+  g->chips.attr[6] = 0x2F;
+  g->heroStep(6, true);
+  CHECK_EQ(g->st.scroll, 16);
+  while (g->st.scroll) g->heroProcess();
+  CHECK_EQ(g->st.x, 11);
+  // landing refused on an impassable chip
+  f0 = g->frameCounter;
+  g->land();
+  CHECK_EQ(g->frameCounter - f0, 48u);
+  CHECK_EQ(g->st.vehicle, 2);
+  // landing on plain ground
+  g->st.x = 12;
+  g->enterMap();
+  g->land();
+  CHECK_EQ(g->st.vehicle, 0);
+  CHECK_EQ(g->st.heroSprite, 0);
+  CHECK_EQ(g->st.airMap, 0);
+  CHECK_EQ(g->st.airX, 12);
+  CHECK_EQ(g->st.dir, 2);
+  CHECK_EQ(g->st.layer, 0x20);
+  CHECK(std::string(g->st.curBgm) == "FIELD");
+  CHECK(g->scr.textAttr[12][39] != core::kTextBlack);
+}
+
+// 21 §5.7 / acceptance 5: the view does not stop at a non-loop map edge (outer chip shown);
+// covering chips and bridges hide the hero.
+TEST(d2_draw_edges_and_cover) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  // chip 5 (outer) = color 1, chip 4 = color 0, hero patterns = color 2 (opaque)
+  std::fill(g->chipset.data.begin(), g->chipset.data.end(), 0);
+  uint8_t* p5 = g->chipset.data.data() + 5 * d2::kPatternBytes;
+  std::memset(p5 + 128, 0xFF, 128);
+  for (int k = 0; k < 8; ++k) {
+    std::memset(g->cache[k], 0, d2::kPatternBytes);
+    std::memset(g->cache[k], 0xFF, 128);        // mask
+    std::memset(g->cache[k] + 256, 0xFF, 128);  // plane 1
+  }
+  auto px = [&](int vx, int vy) { return g->scr.pix[(-16 + 32 * vy + 8) * core::kScreenW + 16 + 32 * vx + 8]; };
+  g->st.x = 0;
+  g->st.y = 0;
+  g->enterMap();
+  CHECK_EQ(g->viewX, -9);
+  g->drawField();
+  CHECK_EQ(px(8, 6), 1);   // left of the hero: outside the map
+  CHECK_EQ(px(9, 5), 1);   // above
+  CHECK_EQ(px(10, 6), 0);  // map
+  CHECK_EQ(px(9, 6), 2);   // hero
+  // loop map: the other side of the map is shown instead
+  g->map.hdr.loop = 1;
+  g->enterMap();
+  g->drawField();
+  CHECK_EQ(px(8, 6), 0);
+  // covering chip hides the hero; bridge hides a lower-layer hero
+  g->map.hdr.loop = 0;
+  g->st.x = g->st.y = 10;
+  g->enterMap();
+  g->map.grid[10][10] = 6;
+  g->chips.attr[6] = 0x30;
+  g->drawField();
+  CHECK_EQ(px(9, 6), 0);
+  g->chips.attr[6] = 0x40;
+  g->st.layer = 0x20;
+  g->drawField();
+  CHECK_EQ(px(9, 6), 0);
+  g->st.layer = 0x00;
+  g->drawField();
+  CHECK_EQ(px(9, 6), 2);
+}
+
+// 01 §4.3 / 21 §1.3: key buffer with typematic (first repeat 28 frames after the press, then
+// every 3), and direction reading with the "later direction wins" rule.
+TEST(d2_key_buffer_and_direction) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  core::InputState right;
+  right.right = true;
+  host.script.assign(40, right);
+  host.frame = 0;
+  g->clearKeys();
+  for (int f = 1; f <= 40; ++f) g->vsync();
+  CHECK_EQ(g->keyCount, 6);  // frames 1, 28, 31, 34, 37, 40
+  g->vsync();                // released
+  g->clearKeys();
+  // diagonal: initial memory is "horizontal" -> the vertical direction wins
+  core::InputState diag;
+  diag.right = diag.down = true;
+  host.script.assign(1, diag);
+  host.frame = 0;
+  g->vsync();
+  for (auto& l : g->latch) l = false;
+  g->lastAxisVertical = false;
+  CHECK_EQ(g->readDirection(), 2);
+  g->lastAxisVertical = true;
+  CHECK_EQ(g->readDirection(), 6);
+  core::InputState none;
+  host.script.assign(1, none);
+  host.frame = 0;
+  g->vsync();
+  CHECK_EQ(g->readDirection(), 0);
+  g->latch[4] = true;  // ok/cancel latched
+  CHECK_EQ(g->readDirection(), 5);
+}
+
+// 20 §9.3 step 7 / acceptance 8: a save whose map version differs restores no event state.
+TEST(d2_save_version_mismatch) {
+  const std::string root = kSamples + "05yakata/05Yakata";
+  if (!have(root)) return;
+  RecHost host;
+  core::StartOptions opt;
+  const std::string tmp = "/tmp/claude-0/d2_save_ver_test";
+  CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + " && cp -r '" + root + "'/. " + tmp + "/").c_str()) ==
+        0);
+  std::vector<uint8_t> save;
+  CHECK(core::tryReadFile(tmp, "SAVE1.DAT", save));
+  if (save.size() != size_t(d2::kSaveSize)) return;
+  d2::Database db;
+  d2::loadDatabase(tmp, db);
+  auto initial = std::make_unique<d2::MapData>();
+  d2::loadMap(tmp, core::rd16(&save[0x03C0 + 1]), *initial, db.state0, 0);
+  // original save: some NPC is not at its initial position
+  auto g = std::make_unique<d2::Game>(host, tmp, opt);
+  CHECK(g->loadSlot(0));
+  int moved = 0;
+  for (int i = 0; i < d2::kMaxEvents; ++i)
+    if (initial->events[i] && g->map.events[i] &&
+        (g->map.events[i]->x != initial->events[i]->x || g->map.events[i]->y != initial->events[i]->y))
+      ++moved;
+  CHECK(moved > 0);
+  // version changed: everything at the initial positions
+  core::wr16(&save[0x0D20], uint16_t(core::rd16(&save[0x0D20]) + 1));
+  CHECK(core::writeFileAbs(core::resolvePath(tmp, "SAVE1.DAT"), save));
+  auto h = std::make_unique<d2::Game>(host, tmp, opt);
+  CHECK(h->loadSlot(0));
+  for (int i = 0; i < d2::kMaxEvents; ++i)
+    if (initial->events[i] && h->map.events[i]) {
+      CHECK_EQ(h->map.events[i]->x, initial->events[i]->x);
+      CHECK_EQ(h->map.events[i]->y, initial->events[i]->y);
+    }
+  // a missing slot is a failed load
+  CHECK(!h->loadSlot(2));
+}
+
+// 20 §7.3: a missing map file gives the default map and keeps the previous map version;
+// 20 §8.4: a truncated picture is "no image".
+TEST(d2_default_map_and_short_picture) {
+  if (!have(kSynthRoot)) return;
+  d2::Database db;
+  d2::loadDatabase(kSynthRoot, db);
+  db.state0.defChr[2] = 77;
+  std::memcpy(db.state0.defBattleBgm, "BATTLE\0\0", 9);
+  auto m = std::make_unique<d2::MapData>();
+  d2::loadMap(kSynthRoot, 999, *m, db.state0, 1234);
+  CHECK(!m->fromFile);
+  CHECK_EQ(m->version, 1234);
+  CHECK_EQ(m->hdr.size, 32);
+  CHECK_EQ(m->hdr.encRate, 20);
+  CHECK_EQ(m->hdr.chr[2], 77);
+  CHECK(std::string(m->hdr.battleBgm) == "BATTLE");
+  CHECK_EQ(m->zones[0], 0xFF);
+  const std::string tmp = "/tmp/claude-0/d2_short_pct";
+  CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + "/EBD_PCT").c_str()) == 0);
+  CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT001.EBD", std::vector<uint8_t>(128047, 0x11)));
+  CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT002.EBD", std::vector<uint8_t>(128048, 0x11)));
+  d2::Picture pic;
+  CHECK(!d2::loadPicture(tmp, "EBD_PCT/PCT001.EBD", pic));
+  CHECK(!pic.valid);
+  CHECK(d2::loadPicture(tmp, "ebd_pct/pct002.ebd", pic));
+  CHECK(pic.valid);
+}
