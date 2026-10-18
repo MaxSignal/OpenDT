@@ -1,4 +1,6 @@
 // Acceptance checks from spec 02 (music driver).
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -627,4 +629,126 @@ TEST(music_compile_all_samples) {
   }
   CHECK(files.size() > 900);
   CHECK_EQ(bad, 0);
+}
+
+// ---- spec v1.1 acceptance items 18-21 ----
+
+TEST(music_v11_18_fade_before_first_play) {
+  auto data = agasaSound();
+  for (int ver = 0; ver < 2; ++ver) {
+    Rig r;
+    r.d.setVersion221(ver == 1);
+    if (!data.empty()) r.d.setSoundDat(music::parseSoundDat(data));
+    r.d.stop();
+    // Uninitialised: fades write nothing, with or without an effect playing.
+    r.log.clear();
+    for (int f = 0; f <= 15; ++f) r.d.setFade(f);
+    CHECK(r.log.empty());
+    CHECK_EQ(r.d.fade(), 15);
+    if (!data.empty()) {
+      r.d.requestSfx(1, 15);
+      r.vsync();
+      r.log.clear();
+      for (int f = 0; f <= 15; ++f) r.d.setFade(f);
+      CHECK(r.log.empty());
+    }
+    // Loading without playing does not initialise.
+    r.load(std::string(kVoice1) + "1:C\n4:V12 C\n");
+    r.log.clear();
+    r.d.setFade(3);
+    CHECK(r.log.empty());
+    // After one play + stop, every fade writes FM carrier TL and 8, 9, 10 (also during an effect).
+    r.d.play();
+    r.d.stop();
+    if (!data.empty()) {
+      r.d.requestSfx(1, 15);
+      r.vsync();
+    }
+    r.log.clear();
+    r.d.setFade(5);
+    CHECK(hasWrite(r.log, 0x4C, uint8_t(std::min(64 - 7 * 4 + 10, 127))));  // V12-5=7 -> base 36, OP4 TL 10
+    CHECK(lastWrite(r.log, 0x08) >= 0 && lastWrite(r.log, 0x09) >= 0 && lastWrite(r.log, 0x0A) >= 0);
+  }
+}
+
+TEST(music_v11_19_ssg_pitch) {
+  // Render SSG period 477 (O4 C) and 283 (O4 A) through the real player and measure zero crossings.
+  const char* dir = "/tmp/claude-0/music_pitch_test";
+  std::string bgm = std::string(dir) + "/BGM";
+  std::string cmd = std::string("mkdir -p ") + bgm;
+  if (std::system(cmd.c_str()) != 0) return;
+  const char* songs[2] = {"4:T120 V15 O4 Q8 L1 {C}\n", "4:T120 V15 O4 Q8 L1 {A}\n"};
+  const double expect[2] = {261.6, 441.0};
+  for (int k = 0; k < 2; ++k) {
+    std::string p = bgm + "/BGM0" + std::to_string(k) + ".MML";
+    core::writeFileAbs(p, std::vector<uint8_t>(songs[k], songs[k] + std::strlen(songs[k])));
+    music::MusicPlayer pl(dir, 44100);
+    core::SoundRequest r;
+    r.kind = core::SoundRequest::PlayNumber;
+    r.value = k;
+    pl.push(r);
+    std::vector<int16_t> buf(2 * 44100);
+    pl.generate(buf.data(), 44100);  // settle
+    pl.generate(buf.data(), 44100);
+    int cross = 0;
+    for (int i = 1; i < 44100; ++i)
+      if ((buf[2 * i] >= 0) != (buf[2 * i - 2] >= 0)) ++cross;
+    const double hz = cross / 2.0;
+    CHECK(hz > expect[k] - 3 && hz < expect[k] + 3);
+  }
+}
+
+TEST(music_v11_20_ver221_restore_hw_envelope) {
+  auto data = agasaSound();
+  if (data.empty()) return;
+  Rig r;
+  r.d.setVersion221(true);
+  r.d.setSoundDat(music::parseSoundDat(data));
+  r.d.stop();
+  r.load("4:S8 M500 L1 C D\n");
+  r.d.play();
+  r.tick();
+  r.d.requestSfx(1, 11);
+  r.vsync();
+  const std::string end = fmt(r.vsync());
+  CHECK(contains(end, "07=BF 00=DD 01=01 08=0C 07=BE 02=DD 03=01 09=0C"));
+  CHECK(!contains(end, "08=10") && !contains(end, "0D="));
+  std::vector<W> w;
+  for (int t = 0; t < 70; ++t) {
+    auto x = r.tick();
+    w.insert(w.end(), x.begin(), x.end());
+  }
+  CHECK(!hasWrite(w, 0x08, 0x10));
+  CHECK_EQ(lastWrite(w, 0x0D), -1);
+}
+
+TEST(music_v11_21_number_sign) {
+  {
+    Rig r;
+    r.load("1:N40000 A\n");
+    r.d.play();
+    auto w = r.tick();
+    CHECK_EQ(lastWrite(w, 0xA4), 0x23);
+    CHECK_EQ(lastWrite(w, 0xA0), 0xE4);
+  }
+  {
+    Rig r;
+    r.load("1:N-40000 A\n");
+    r.d.play();
+    auto w = r.tick();
+    CHECK_EQ(lastWrite(w, 0xA4), 0x24);
+    CHECK_EQ(lastWrite(w, 0xA0), 0x3E);
+  }
+  // N32768 -> magnitude 0, negative flag 1; O40000 -> range error
+  std::string t = "1:N32768 O40000 C\n";
+  auto s = music::compileMml(std::vector<uint8_t>(t.begin(), t.end()));
+  const uint8_t* p = &s.code[s.partStart[0]];
+  CHECK(p[0] == music::kOpExt && p[1] == 0xF1 && p[2] == 0 && p[3] == 1);
+  CHECK_EQ(s.errorCount, 1);
+  CHECK_EQ(p[4], music::kOpLineEnd);
+  // §2.8 v1.1: stop at an invalid character without adding a value
+  std::string e = "SSGENV:@1,2,15,12;x\n";
+  auto s2 = music::compileMml(std::vector<uint8_t>(e.begin(), e.end()));
+  std::vector<uint8_t> want = {0xFF, 2, 15, 12, 0xFF};
+  CHECK(s2.env == want);
 }

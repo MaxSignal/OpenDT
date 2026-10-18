@@ -42,9 +42,8 @@ class Driver {
  private:
   struct Chan {
     // reset at song start
-    // Driver start-up values are 0 (spec 02 §3.2 "ドライバ起動時の初期値はいずれも 0"); the song-start
-    // values are set by initChannel(). This matters before the first song: a fade request writes the
-    // SSG volume registers from these states (spec 02 §3.22), e.g. D1 fading out while no BGM ever played.
+    // Start-up values. Song-start states are unobservable before the first play (spec 02 §3.2 v1.1:
+    // channels are "uninitialised" until then); they are set by initChannel().
     int start = -1, pos = -1;
     int defLen = 0;
     int remain = 0;
@@ -80,7 +79,7 @@ class Driver {
     int envRate = 0, envPos = 0, envCounter = 0, envVolStart = 0;
     int tremCur = 0, tremPeriod = 1, tremDelay = 0, tremWait = 0, tremCount = 0;
     int vibPeriod = 1, vibDelay = 0, vibWait = 0, vibCount = 0;
-    bool vibUp = true;  // PROVISIONAL(Q2): start-up direction of vibrato is unspecified
+    bool vibUp = true;  // start-up direction is "up" (spec 02 §3.2, §3.12 v1.1)
     int portaCur = 0, portaInc = 0, portaBlock = 0;
   };
 
@@ -129,6 +128,7 @@ class Driver {
   Chan ch_[7];
   bool lineEnd_[7] = {};
   bool playing_ = false;
+  bool everPlayed_ = false;  // false until the first play(): channels uninitialised (spec 02 §3.2, §3.22 v1.1)
   bool phase_ = false;
   int fade_ = 0;
   uint8_t shadow_[256] = {};

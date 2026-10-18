@@ -269,6 +269,7 @@ void Driver::play() {
   write(0x27, 0x40);
   fade_ = 0;
   playing_ = true;
+  everPlayed_ = true;
   phase_ = false;
   write(0x26, uint8_t((256 - timerQ()) & 0xFF));
   write(0x27, 0x7A);
@@ -289,6 +290,9 @@ void Driver::stop() {
 
 void Driver::setFade(int level) {
   fade_ = level & 0xFF;
+  // Until the first playback start the channels are uninitialised: record the level only and write
+  // nothing (FM or SSG). Afterwards write every time, even while stopped or during an effect (§3.22 v1.1).
+  if (!everPlayed_) return;
   for (int i = 0; i < 7; ++i) {
     if (isFm(i) && !ch_[i].voiceLoaded) continue;
     volumeUpdate(i);
