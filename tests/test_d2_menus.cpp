@@ -83,7 +83,7 @@ std::unique_ptr<d2::Game> startGame(ScriptHost& h, const std::string& root, bool
   return g;
 }
 
-std::string sj(const char* u) { return core::utf8ToSjis(u); }
+[[maybe_unused]] std::string sj(const char* u) { return core::utf8ToSjis(u); }
 
 // Symlink farm of a game root so tests can write SAVEn.DAT without touching the sample.
 std::string farm(const std::string& root, const std::string& name) {
