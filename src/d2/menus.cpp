@@ -88,6 +88,7 @@ void drawListPage(Game& g, const ListCtx& L, int x, int y, int P) {
 }
 
 void equipChange(Game& g, int c, int s, int n);
+int waitKey(Game& g);
 
 void equipPreview(Game& g, const ListCtx& L, int P, int pos) {
   const Member& m = g.members[L.c];
@@ -107,6 +108,9 @@ void equipPreview(Game& g, const ListCtx& L, int P, int pos) {
 
 // Returns the selected entry id (or 0 for equip), -1 on cancel.
 int runList(Game& g, ListCtx& L, int x, int y, int& P, int& pos) {
+  // 23 §2.3 step 0 (v1.1): clear the key buffer, wait 1 VSYNC, blink counter 0, then draw.
+  g.clearKeys();
+  g.vsync();
   g.drawWindow(x, y, winWidth(L.kind), 0x90);
   drawListPage(g, L, x, y, P);
   if (L.kind == LK::Equip) equipPreview(g, L, P, pos);
@@ -562,11 +566,7 @@ void reorderCommand(Game& g, MenuCtx& mc) {
   for (int i = 0; i < n; ++i)
     if (!used[i]) chosen[n - 1] = i;
   drawNumbers(n);
-  for (;;) {
-    g.vsync();
-    g.checkStop();
-    if (g.popKey() != kKeyNone) break;
-  }
+  waitKey(g);  // 23 §7 step 5 (v1.1): look first, VSYNC only when empty; no clear, no STOP check
   uint8_t np[5];
   for (int j = 0; j < n; ++j) np[j] = g.st.party[chosen[j]];
   std::memcpy(g.st.party, np, size_t(n));
@@ -633,11 +633,13 @@ void drawDebugWindow(Game& g) {
 
 void textAt(Game& g, int col, int row, const std::string& s, uint8_t attr) { core::textWriteD2(g.scr, col, row, s, attr, g.gaiji); }
 
+// "Wait until a keystroke is available" (01 §4.3): no buffer clear, no STOP check; the buffer is
+// looked at first and a VSYNC is waited only when it is empty.
 int waitKey(Game& g) {
   for (;;) {
-    g.vsync();
     const int k = g.popKey();
     if (k != kKeyNone) return k;
+    g.vsync();
   }
 }
 
@@ -748,7 +750,8 @@ int warpListWindow(Game& g, int x, int y) {
   ListCtx L;
   L.kind = LK::Warp;
   L.entries.resize(30);
-  for (int i = 0; i < 30 && i < g.st.warpCount; ++i) {
+  const int count = std::min<int>(g.st.warpCount, 30);  // corrupt counts above 30 -> 30 (23 §2.3 v1.1)
+  for (int i = 0; i < count; ++i) {
     const WarpPoint& w = g.st.warps[i];
     if (w.map == 0xFFFF) continue;
     Entry& e = L.entries[size_t(i)];
@@ -983,7 +986,8 @@ void fieldMenu(Game& g) {
       drawMenuScreen(g);
     }
   } catch (EventAbort&) {
-    // PROVISIONAL(Q1): STOP while the "event running" flag is set by a switch-type item/magic.
+    // STOP during the key wait after a switch-type item/magic (23 §3.5 step 6, v1.1): treated as
+    // the end of that key wait -> flag cleared, menu closed without fade.
     g.st.eventRunning = 0;
     closeFieldMenu(g, 0);
   }

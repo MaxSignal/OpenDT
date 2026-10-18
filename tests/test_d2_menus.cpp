@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -55,8 +56,10 @@ struct ScriptHost : core::Host {
     }
   }
   core::InputState cur;
+  std::function<void(long)> onFrame;  // called at the start of every VSYNC (tests inject keystrokes)
   void vsync(const core::Screen&) override {
     ++count;
+    if (onFrame) onFrame(count);
     if (pos < frames.size()) {
       cur = frames[pos++];
     } else {
@@ -547,4 +550,117 @@ TEST(d2menu_gold_window_and_party_window_draw) {
   CHECK_EQ(g->scr.pget(0xC0, 0x30), 14);
   CHECK_EQ(g->scr.pget(0xC0 + 399, 0x30 + g->st.partyCount * 24 + 23), 14);
   CHECK_EQ(g->scr.pget(0xC0 + 400, 0x30), 3);
+}
+
+namespace {
+void pushKey(d2::Game& g, uint8_t k) {
+  if (g.keyCount < 16) g.keyBuf[g.keyCount++] = k;
+}
+}  // namespace
+
+TEST(d2menu_v11_list_open_clears_key_buffer) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  h.script("");
+  auto g = startGame(h, root);
+  std::memset(g->inventory, 0, sizeof(g->inventory));
+  g->addItem(104);
+  // a buffered Return must not select anything: the list clears the buffer when it opens
+  pushKey(*g, d2::kKeyReturn);
+  h.script("20 x");
+  h.tail = 50;
+  const long c0 = h.count;
+  int r = 0;
+  try {
+    r = d2::itemListWindow(*g, 0xB8, 0x28);
+  } catch (ScriptEnd&) {
+    CHECK(!"list did not return");
+  }
+  CHECK_EQ(r, -1);
+  CHECK(h.count - c0 >= 2);  // the opening VSYNC plus the page VSYNC
+}
+
+TEST(d2menu_v11_variable_editor_roll_keys) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  h.script("");
+  auto g = startGame(h, root, true);
+  g->vars[0] = 98;
+  g->vars[1] = 0;
+  g->vars[6] = 0;
+  // debug menu: down x5 -> 変数 -> (inject keys) -> cancel debug menu
+  h.script("8 d d d d d z 60 x");
+  h.tail = 60;
+  const long base = h.count;
+  h.onFrame = [&](long n) {
+    if (n == base + 90) {
+      // ROLL UP twice (98 -> 99, then stays at the limit), ROLL DOWN, right, ROLL UP,
+      // down (cursor to var 6), ROLL DOWN at 0 (no change), Esc
+      for (int k : {0x36, 0x36, 0x37, int(d2::kKeyRight), 0x36,
+                    int(d2::kKeyDown), 0x37, int(d2::kKeyEsc)})
+        pushKey(*g, uint8_t(k));
+    }
+  };
+  try {
+    d2::debugMenu(*g);
+  } catch (ScriptEnd&) {
+    CHECK(!"debug menu did not return");
+  }
+  CHECK_EQ(g->vars[0], 98);
+  CHECK_EQ(g->vars[1], 1);
+  CHECK_EQ(g->vars[6], 0);
+  // the cursor cell (var 6, column 25+8, row 4) was last drawn inverted before Esc; the text layer
+  // is restored to the field mask on exit
+  CHECK_EQ(g->scr.textAttr[24][40], core::kTextMask);
+}
+
+TEST(d2menu_v11_warp_count_clamped) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  h.script("");
+  auto g = startGame(h, root);
+  g->st.warpCount = 200;  // corrupt
+  for (auto& w : g->st.warps) {
+    w.map = 1;
+    w.x = w.y = 1;
+  }
+  g->warpListPage = 5;  // last page: entries 25..34; 30.. must be empty
+  g->warpListPos = 9;   // entry 34 (beyond 30): empty -> decide does nothing
+  h.script("8 z 8 l l l l l z");
+  h.tail = 50;
+  int r = -2;
+  try {
+    r = d2::warpListWindow(*g, 0xC0, 0x38);
+  } catch (ScriptEnd&) {
+    CHECK(!"warp list did not return");
+  }
+  // The first decide on entry 34 (beyond the clamped count of 30) is ignored; the left keys move
+  // to a non-empty entry before 30, which is then returned.
+  CHECK(r >= 0 && r < 30);
+}
+
+TEST(d2menu_v11_reorder) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  h.script("");
+  auto g = startGame(h, root);
+  g->st.noReorder = 0;
+  const int a = g->st.party[0];
+  const int b = a == 1 ? 2 : 1;
+  g->joinParty(b);
+  CHECK_EQ(g->st.partyCount, 2);
+  // reorder (cmd 3) -> pick member 1 first -> final key -> close menu
+  h.script("8 d d d z 8 d z 8 z 8 x");
+  h.tail = 60;
+  try {
+    d2::fieldMenu(*g);
+  } catch (ScriptEnd&) {
+    CHECK(!"menu did not close");
+  }
+  CHECK_EQ(g->st.party[0], b);
+  CHECK_EQ(g->st.party[1], a);
 }
