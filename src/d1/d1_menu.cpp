@@ -367,7 +367,7 @@ int Game::magicSelect(int c) {
     window(0x1E, 7, 0x32, 9);
     drawStr(0x21, 8, S("魔法は使えません"));
     waitRelease();
-    waitPress();
+    waitAnyKey();  // not a キー押し待ち: ignores the fast key (spec 11 §9.5.1 / 12 §6.4, v1.1)
     return -1;
   }
   window(4, 2, 0x1F, 0xC);

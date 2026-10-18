@@ -26,6 +26,16 @@ class Battle {
  public:
   Battle(Game& g) : g(g) {}
   int run(int group, bool eventBattle);
+  int testEffect(int m, int caster, int t) {
+    for (int s = 0; s < 4; ++s)
+      if (valid(s)) {
+        bAtk[s] = g.calcAtk(g.party[s]);
+        bDef[s] = g.calcDef(g.party[s]);
+        bAgi[s] = g.calcAgi(g.party[s]);
+      }
+    curTarget = t;
+    return effect(m, caster, t, 0);
+  }
   int probeEnemy(const BEnemy& e, int initTarget, int* target) {
     en[0] = e;
     k = 1;
@@ -370,7 +380,7 @@ int Battle::magicSelect(int s) {
     g.window(42, 10, 79, 15);
     g.drawStr(52, 12, S("魔法は使えません"));
     g.waitRelease();
-    g.waitPress();
+    g.waitAnyKey();  // not a キー押し待ち: ignores the fast key (spec 11 §9.5.1 / 12 §6.4, v1.1)
     return -1;
   }
   g.window(24, 10, 79, 15);
@@ -829,7 +839,7 @@ void Battle::doAction(int x) {
     case 0x38: {
       putS("の攻撃！#;");
       const int amt = g.variance(10);
-      // PROVISIONAL(Q2): a "none" target (attack side = enemies) is undefined in the spec; nothing is drained.
+      // Target "none" (attack side = enemies): draw RNG, drain nothing, empty name, redraw status (12 §12.12, v1.1).
       if (curTarget >= 0 && curTarget < 4 && valid(curTarget)) {
         int& mp = g.heroes[g.party[curTarget]].mp;
         if (mp >= amt) mp -= amt;
@@ -913,7 +923,7 @@ int Battle::effect(int m, int caster, int t, int amount) {
   auto stat = [&](int which) -> int& {
     static int dummy;
     if (t < 4) {
-      if (t < 0) return dummy;
+      if (t < 0 || !valid(t)) return dummy;  // empty slot: ability changes are discarded
       return which == 0 ? bAtk[t] : which == 1 ? bDef[t] : bAgi[t];
     }
     if (!enemyExists(t)) return dummy;
@@ -933,6 +943,7 @@ int Battle::effect(int m, int caster, int t, int amount) {
     case 5:
       return (caster == kItemCaster || (caster >= 0 && caster < 4)) ? 0 : 1;
     case 6: {
+      if (t < 4 && !valid(t)) return 0;  // empty slot: revive fails (12 §1.2, v1.1)
       if (hp(t) != 0) return 0;
       hp(t) = std::max(1, recMax(t) / 8);
       return hp(t);
@@ -945,9 +956,11 @@ int Battle::effect(int m, int caster, int t, int amount) {
     case 8: status(t) |= 0x01; return 1;
     case 9: status(t) |= 0x02; return 1;
     case 10: status(t) |= 0x04; return 1;
-    case 11:
-      status(t) ^= 0x08;
-      return (status(t) & 0x08) ? 9 : 1;
+    case 11: {
+      const int ns = status(t) ^ 0x08;  // empty slot reads status 0 and discards the write -> 9
+      status(t) = ns;
+      return (ns & 0x08) ? 9 : 1;
+    }
     case 12: status(t) |= 0x10; return 1;
     case 13: {
       const int v = g.rng.next();
@@ -1366,6 +1379,11 @@ int Battle::run(int group, bool eventBattle) {
 int Game::testEnemyDecision(const BEnemy& e, int initTarget, int* target) {
   Battle b(*this);
   return b.probeEnemy(e, initTarget, target);
+}
+
+int Game::testBattleEffect(int m, int caster, int target) {
+  Battle b(*this);
+  return b.testEffect(m, caster, target);
 }
 
 int Game::battle(int group, bool eventBattle) {

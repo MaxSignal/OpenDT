@@ -193,6 +193,8 @@ struct D1Test {
   static bool msgOpen(const Game& g) { return g.msgOpen_; }
   static void applyPal(Game& g, int mode, int off) { g.applyPal(mode, off); }
   static const core::Screen& screen(const Game& g) { return g.scr_; }
+  static void waitPress(Game& g) { g.waitPress(); }
+  static int magicSelect(Game& g, int c) { return g.magicSelect(c); }
 };
 }  // namespace d1
 
@@ -513,4 +515,94 @@ TEST(d1_battle_wipe_vs_game_over) {
   CHECK_EQ(g.battle(3, true), 0);
   CHECK(g.heroes[1].hp > 0);
   CHECK(!g.isGameOver());
+}
+
+// Spec 11 §1.3 (v1.1, D1-Q3): a key-press wait looks at the fast key only when it starts.
+TEST(d1_wait_press_fast_checked_once) {
+  ScriptHost h;
+  core::StartOptions opt;
+  d1::Game g(h, sample("games/agasa/agasa"), opt);
+  h.probe = [&]() {
+    h.held = core::InputState();
+    if (h.frames >= 1) h.held.fast = true;  // fast pressed after the wait started
+    if (h.frames >= 6) h.held.ok = true;
+  };
+  h.frames = 0;
+  d1::D1Test::waitPress(g);
+  CHECK_EQ(h.frames, 6L);  // not ended by the fast key
+  // fast held at the start: exactly one frame
+  h.probe = nullptr;
+  h.held = core::InputState();
+  h.held.fast = true;
+  h.frames = 0;
+  d1::D1Test::waitPress(g);
+  CHECK_EQ(h.frames, 1L);
+}
+
+// Spec 11 §9.5.1 step 2 (v1.1, D1-Q8): the wait after 「魔法は使えません」 ignores the fast key.
+TEST(d1_no_magic_wait_ignores_fast) {
+  ScriptHost h;
+  core::StartOptions opt;
+  d1::Game g(h, sample("games/agasa/agasa"), opt);
+  g.newGame();
+  const int c = g.party[0];
+  std::memset(g.db.heroes[c].magicLv, 99, 32);
+  g.heroes[c].level = 1;
+  h.held.fast = true;
+  h.probe = [&]() {
+    if (h.frames >= 9) h.held.cancel = true;
+  };
+  h.frames = 0;
+  CHECK_EQ(d1::D1Test::magicSelect(g, c), -1);
+  CHECK_EQ(h.frames, 9L);
+}
+
+// Spec 11 §8.2 (v1.1, D1-Q1): 0x76/0x77 with an argument outside '0'-'7' do nothing (the message
+// window stays open) and advance 2 bytes.
+TEST(d1_event_move_bad_argument) {
+  ScriptHost h;
+  h.held.fast = true;
+  core::StartOptions opt;
+  d1::Game g(h, sample("games/agasa/agasa"), opt);
+  g.newGame();
+  const std::vector<uint8_t> cmds = {0x2A, 2, 'A', 'B', 0x77, '/', 0x76, '8', 0x77, 0x00,
+                                     0x65, '8', 0x66, 5, 0};
+  d1::D1Test::installBlock(g, oneEvent(g.curScreen, 6, 6, 5, 0, 0, cmds), 2, 2);
+  const int heroDir = d1::D1Test::obj(g, 0).dir, objDir = d1::D1Test::obj(g, 1).dir;
+  bool openDuringWait = false;
+  h.probe = [&]() { openDuringWait = d1::D1Test::msgOpen(g); };
+  d1::D1Test::runEvent(g, 1);
+  CHECK(openDuringWait);  // the 0x65 '8' wait runs with the window still open
+  CHECK(g.getSwitch(5));  // decoding continued 2 bytes per bad command
+  CHECK_EQ(d1::D1Test::obj(g, 0).dir, heroDir);
+  CHECK_EQ(d1::D1Test::obj(g, 1).dir, objDir);
+  CHECK_EQ(d1::D1Test::obj(g, 0).x, 2);
+}
+
+// Spec 12 §1.2 (v1.1, D1-Q6): an empty party slot as the current target is never revived and its
+// status / abilities are never written; result values follow the §13.4 table.
+TEST(d1_battle_empty_slot_target) {
+  ScriptHost h;
+  core::StartOptions opt;
+  d1::Game g(h, sample("games/agasa/agasa"), opt);
+  g.newGame();
+  g.party[0] = 0;
+  g.party[1] = 0xFF;
+  g.party[2] = 0xFF;
+  g.party[3] = 0xFF;
+  d1::Hero before[8];
+  for (int i = 0; i < 8; ++i) before[i] = g.heroes[i];
+  const int kItem = -2;
+  CHECK_EQ(g.testBattleEffect(11, kItem, 1), 9);  // confusion of status 0 -> "混乱してしまった"
+  CHECK_EQ(g.testBattleEffect(6, kItem, 1), 0);   // revive fails
+  CHECK_EQ(g.testBattleEffect(7, kItem, 1), 0);   // cure fails (status reads 0)
+  CHECK_EQ(g.testBattleEffect(8, kItem, 1), 1);
+  CHECK_EQ(g.testBattleEffect(12, kItem, 1), 1);
+  CHECK_EQ(g.testBattleEffect(14, kItem, 1), -g.db.magics[14].power);
+  CHECK_EQ(g.testBattleEffect(20, kItem, 1), -g.db.magics[20].power);  // "fell"
+  for (int i = 0; i < 8; ++i) {
+    CHECK_EQ(g.heroes[i].status, before[i].status);
+    CHECK_EQ(g.heroes[i].hp, before[i].hp);
+    CHECK_EQ(g.heroes[i].mp, before[i].mp);
+  }
 }

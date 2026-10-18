@@ -1080,7 +1080,7 @@ bool Game::runEvent(int o) {
         if (o >= objCount_) break;
         Obj& ob = objs_[o];
         if (ob.gfx >= 0x40 && ob.move == 0) break;
-        if (k < 0 || k > 7) break;  // PROVISIONAL(Q1): out-of-range argument is undefined in the spec
+        if (k < 0 || k > 7) break;  // not '0'-'7': do nothing, window stays open (11 §8.2, v1.1)
         msgClose();
         while (ob.stage != 0) drawObj(o, true);
         if (ob.gfx < 0x40 && !evChrLoaded_) {
@@ -1104,7 +1104,7 @@ bool Game::runEvent(int o) {
       case 0x77: {
         const int k = cp[pc + 1] - '0';
         pc += 2;
-        if (k < 0 || k > 7) break;  // PROVISIONAL(Q1)
+        if (k < 0 || k > 7) break;  // not '0'-'7': do nothing, window stays open (11 §8.2, v1.1)
         msgClose();
         Obj& h = objs_[0];
         if (k < 4) {

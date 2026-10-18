@@ -34,16 +34,18 @@ void Game::waitRelease() {
   while (anyKey(in())) frame();
 }
 
+// "キー押し待ち" (spec 11 §1.3): the fast key is checked once, when the wait starts.
 void Game::waitPress() {
-  for (;;) {
-    core::InputState s = in();
-    if (s.fast) {
-      frame();
-      return;
-    }
-    if (anyKey(s)) return;
+  if (in().fast) {
     frame();
+    return;
   }
+  waitAnyKey();
+}
+
+// Wait for ok / cancel / a direction key; never looks at the fast key (spec 11 §1.3, v1.1).
+void Game::waitAnyKey() {
+  while (!anyKey(in())) frame();
 }
 
 void Game::se(int n) {
