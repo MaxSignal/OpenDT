@@ -376,6 +376,162 @@ TEST(d2menu_save_roundtrip_all) {
   CHECK_EQ(n, 23);
 }
 
+// 23 §9.5 / 24 §6.8: flash = 10 x (2+1) VSYNC = 30; no flash = 3 wait units (21 VSYNC, 9 with SHIFT).
+TEST(d2menu_magic_flash_frames) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  h.script("");
+  h.tail = 1000;
+  core::StartOptions opt;
+  d2::Game g(h, root, opt);
+  d2::Magic m{};
+  m.flash = 1;
+  m.flashRgb[0] = 15;
+  g.curPal[0][0] = 0x22;
+  long c0 = h.count;
+  d2::magicFlash(g, m);
+  CHECK_EQ(h.count - c0, 30);
+  CHECK_EQ(int(g.curPal[0][0]), 0x22);  // palette restored
+  m.flash = 0;
+  c0 = h.count;
+  d2::magicFlash(g, m);
+  CHECK_EQ(h.count - c0, 21);
+  h.script("q*40");
+  g.vsync();
+  c0 = h.count;
+  d2::magicFlash(g, m);
+  CHECK_EQ(h.count - c0, 9);
+}
+
+// 23 §1.3–§1.9, §1.14: common rules (stat growth, recalc, level up/down, full heal, items).
+TEST(d2menu_common_rules) {
+  const std::string root = kSamples + "tokiake/tokiake";
+  if (!have(root)) return;
+  ScriptHost h;
+  core::StartOptions opt;
+  d2::Game g(h, root, opt);
+  d2::Member m{};
+  m.maxLevel = 99;
+  m.growthK = 10;
+  m.lv1[0] = 100;
+  m.growth[0] = 55;  // HP
+  m.lv1[2] = 10;
+  m.growth[2] = 25;  // attack
+  // L <= K: b + g*(L-1)/10 ; L > K: b + g*(K-1)/10 + g*(L-K)/20 (each term truncated)
+  CHECK_EQ(d2::Game::statForLevel(m, 2, 10), 10 + 25 * 9 / 10);
+  CHECK_EQ(d2::Game::statForLevel(m, 2, 15), 10 + 25 * 9 / 10 + 25 * 5 / 20);
+  m.growth[0] = 3000;
+  CHECK_EQ(d2::Game::statForLevel(m, 0, 99), 9999);  // HP cap
+  CHECK_EQ(d2::Game::statForLevel(m, 2, 99), 10 + 22 + 25 * 89 / 20);
+  m.growth[2] = 3000;
+  CHECK_EQ(d2::Game::statForLevel(m, 2, 99), 999);  // other caps
+  m.growth[2] = 4000;  // 4000*9 = 36000 -> int16 -29536 -> /10 = -2953
+  CHECK_EQ(d2::Game::statForLevel(m, 2, 11), 10 + int16_t(36000) / 10 + 4000 / 20);
+
+  // §1.5: equipment sum is not truncated to 16 bits before the 0..999 clamp.
+  d2::Member e{};
+  e.level = 1;
+  e.maxLevel = 99;
+  e.lv1[2] = 500;
+  for (auto& q : e.learned) q = 0xFF;
+  for (auto& q : e.magicList) q = 0xFF;
+  for (int s = 0; s < 5; ++s) {
+    d2::Item& it = g.db.items[200 + s];
+    it.f[3] = uint8_t(30000 & 0xFF);  // attack +30000 (ITEM.DAT 0x1A)
+    it.f[4] = uint8_t(30000 >> 8);
+    e.equip[s] = uint8_t(200 + s);
+  }
+  g.recalc(e);
+  CHECK_EQ(e.base[0], 500);
+  CHECK_EQ(e.stat[0], 999);  // 500 + 150000 -> 999 (a 16-bit wrap would give 0)
+  g.db.items[200].f[3] = uint8_t(-600 & 0xFF);
+  g.db.items[200].f[4] = uint8_t((-600 >> 8) & 0xFF);
+  for (int s = 1; s < 5; ++s) e.equip[s] = 0xFF;
+  g.recalc(e);
+  CHECK_EQ(e.stat[0], 0);  // 500 - 600 -> 0
+
+  // §1.6: multi-level up learns every level's magic; HP is not restored. Old builds write slot i.
+  d2::Member u{};
+  u.level = 1;
+  u.maxLevel = 99;
+  u.growthK = 99;
+  u.expA = 10;
+  u.expB = 10;
+  u.lv1[0] = 50;
+  u.growth[0] = 100;
+  u.hp = 50;
+  for (auto& q : u.learned) q = 0xFF;
+  for (auto& q : u.magicList) q = 0xFF;
+  u.magicList[0] = 7;
+  u.learnLevel[0] = 2;
+  u.magicList[1] = 9;
+  u.learnLevel[1] = 4;
+  u.magicList[2] = 7;  // duplicate of slot 0
+  u.learnLevel[2] = 3;
+  u.exp = uint32_t(d2::Game::expForLevel(u, 4));
+  d2::Member old = u;
+  g.build = d2::Build::B9710;
+  CHECK(g.levelUp(u));
+  CHECK_EQ(u.level, 4);
+  CHECK_EQ(u.learned[0], 7);
+  CHECK_EQ(u.learned[1], 9);
+  CHECK_EQ(u.learned[2], 0xFF);  // 1997 builds learn into the first slot holding 7
+  CHECK_EQ(u.hp, 50);
+  CHECK(u.maxHp > 50);
+  g.build = d2::Build::B9606;
+  CHECK(g.levelUp(old));
+  CHECK_EQ(old.learned[2], 7);  // 1996 builds write slot i directly
+  // §1.7 level down clamps HP/MP
+  u.exp = 0;
+  u.hp = u.maxHp;
+  g.levelDown(u);
+  CHECK_EQ(u.level, 1);
+  CHECK_EQ(u.hp, u.maxHp);
+  CHECK_EQ(u.maxHp, 50);
+
+  // §1.9 full heal: old builds add 999 only
+  d2::Member fh{};
+  fh.maxHp = 2000;
+  fh.hp = 0;
+  fh.maxMp = 50;
+  fh.status[0] = fh.status[5] = fh.status[3] = 1;
+  g.build = d2::Build::B9608;
+  g.fullHeal(fh);
+  CHECK_EQ(fh.hp, 1000);
+  CHECK_EQ(fh.alive, 1);
+  CHECK_EQ(fh.status[0], 0);
+  CHECK_EQ(fh.status[5], 0);
+  CHECK_EQ(fh.status[3], 1);
+  CHECK_EQ(fh.mp, 50);
+  g.build = d2::Build::B9710;
+  g.fullHeal(fh);
+  CHECK_EQ(fh.hp, 2000);
+
+  // §1.14 items: 99 cap, equipped removal, possession check (1996-06 ignores equipment)
+  std::memset(g.inventory, 0, sizeof(g.inventory));
+  for (int i = 0; i < 99; ++i) CHECK(g.addItem(3));
+  CHECK(!g.addItem(3));
+  CHECK(g.addItem(4));
+  g.moveItemToEnd(3);
+  CHECK_EQ(g.inventory[0][0], 4);
+  CHECK_EQ(g.inventory[1][0], 3);
+  CHECK_EQ(g.inventory[1][1], 99);
+  g.discardItem(4);
+  CHECK_EQ(g.inventory[0][0], 3);
+  CHECK_EQ(g.inventory[1][1], 0);
+  g.st.partyCount = 1;
+  g.st.party[0] = 0;
+  g.members[0].equip[1] = 60;
+  g.build = d2::Build::B9606;
+  CHECK(!g.hasItem(60));
+  g.build = d2::Build::B9608;
+  CHECK(g.hasItem(60));
+  CHECK(g.removeItem(60));
+  CHECK_EQ(g.members[0].equip[1], 0xFF);
+  CHECK(!g.hasItem(60));
+}
+
 TEST(d2menu_gold_window_and_party_window_draw) {
   const std::string root = kSamples + "tokiake/tokiake";
   if (!have(root)) return;

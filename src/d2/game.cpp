@@ -517,9 +517,10 @@ void Game::recalcLevel(Member& m) {
 void Game::recalc(Member& m) {
   recalcLevel(m);
   for (int i = 0; i < 4; ++i) {
-    int16_t v = m.base[i];
+    // 23 §1.5 / 24 §16.3: plain sum then clamp (no 16-bit truncation; see 24 §19.2).
+    int v = m.base[i];
     for (int s = 0; s < 5; ++s)
-      if (m.equip[s] != 0xFF) v = int16_t(v + db.items[m.equip[s]].mod(i));
+      if (m.equip[s] != 0xFF) v += db.items[m.equip[s]].mod(i);
     m.stat[i] = int16_t(v < 0 ? 0 : (v > 999 ? 999 : v));
   }
   for (int i = 0; i < 30; ++i)
