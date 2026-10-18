@@ -6,6 +6,7 @@
 #include "core/text.h"
 #include "d2/battle.h"
 #include "d2/game.h"
+#include "d2/menus.h"
 
 namespace d2 {
 namespace {
@@ -59,7 +60,7 @@ class Battle {
   void waitUntil(uint32_t k) {
     while (g.waitCounter < k) g.vsync();
   }
-  // Battle key wait (spec 24 §1.6). No STOP check (see questions_d2_battle.md Q1).
+  // Battle key wait (spec 24 §1.6). No STOP check: the event-running flag is 0 in battle (24 §3.1 v1.1).
   void keyWaitB() {
     if (g.cur.fast) {
       units(3);
@@ -126,12 +127,10 @@ class Battle {
     }
   }
 
-  // 2-column list (spec 23 §2.3) at (144,240). kind 0: items, 1: magic of member c.
-  int listSelect(int kind, int c);
 
   // ---------------------------------------------------------------- windows (spec 24 §6)
   void partyRow(int i, bool highlight) {
-    if (i < 0 || i >= partyN) return;
+    if (i < 0 || i >= partyN || !s[i].used) return;  // empty slot: no row (24 §19.17)
     const Battler& b = s[i];
     const int y = 256 + 24 * i;
     g.scr.fillRect(296, y - 2, 336, 20, highlight ? 15 : 0);
@@ -179,19 +178,22 @@ class Battle {
   // ---------------------------------------------------------------- enemy graphics (spec 24 §6.7, §6.8)
   int ew(const Battler& b) const { return b.sizeKind ? 160 : 80; }
   int eh(const Battler& b) const { return b.sizeKind ? 128 : 96; }
+  // Normal / white / step-in drawing use the battler's size class dimensions (24 §12.3 v1.1).
   void drawNormal(const Battler& b, int dy = 0) {
-    if (!b.img.valid || b.img.w <= 0) return;
-    const int stride = (b.img.w / 8) * b.img.h;
-    g.scr.maskedPlanes(b.img.mask.data(), b.img.planes.data(), stride, b.img.w, b.img.h, b.x & ~7, b.y + dy);
+    std::vector<uint8_t> mask, planes;
+    classView(b.img, b.sizeKind, mask, planes);
+    const int w = ew(b), h = eh(b);
+    g.scr.maskedPlanes(mask.data(), planes.data(), (w / 8) * h, w, h, b.x & ~7, b.y + dy);
   }
   void drawWhite(const Battler& b) {
-    if (!b.img.valid || b.img.w <= 0) return;
-    const int bpr = b.img.w / 8, plane = bpr * b.img.h;
+    std::vector<uint8_t> mask, planes;
+    classView(b.img, b.sizeKind, mask, planes);
+    const int w = ew(b), h = eh(b), bpr = w / 8, plane = bpr * h;
     const int x0 = b.x & ~7;
-    for (int yy = 0; yy < b.img.h; ++yy)
+    for (int yy = 0; yy < h; ++yy)
       for (int bx = 0; bx < bpr; ++bx) {
         const size_t o = size_t(yy) * bpr + bx;
-        const uint8_t v = b.img.mask[o] | b.img.planes[o] | b.img.planes[o + plane] | b.img.planes[o + 2 * size_t(plane)];
+        const uint8_t v = mask[o] | planes[o] | planes[o + plane] | planes[o + 2 * size_t(plane)];
         for (int k = 0; k < 8; ++k)
           if (v & (0x80 >> k)) g.scr.pset(x0 + bx * 8 + k, b.y + yy, 15);
       }
@@ -383,113 +385,6 @@ class Battle {
 };
 
 // =============================================================================================
-// list window (spec 23 §2.3)
-int Battle::listSelect(int kind, int c) {
-  const int x = 144, y = 240, colGap = 0xC0, width = 0x1A0, eraseW = 0x16 * 8;
-  // entries
-  std::vector<int> ent;  // item slot / magic number, -1 empty
-  if (kind == 0) {
-    for (int i = 0; i < kInventorySlots; ++i) ent.push_back(g.inventory[i][1] ? i : -1);
-  } else {
-    for (int i = 0; i < 30; ++i)
-      if (s[c].learned[i] != 0xFF) ent.push_back(s[c].learned[i]);
-    while (ent.size() < 30) ent.push_back(-1);
-  }
-  auto at = [&](int idx) { return idx >= 0 && idx < int(ent.size()) ? ent[idx] : -1; };
-  int& P = kind == 0 ? g.itemListPage : g.magicListPage[s[c].member];
-  int& pos = kind == 0 ? g.itemListPos : g.magicListPos[s[c].member];
-  g.drawWindow(x, y, width, 0x90);
-  auto drawPage = [&]() {
-    g.vsync();
-    for (int col = 0; col < 2; ++col)
-      for (int r = 0; r < 5; ++r) {
-        const int idx = (P + col) * 5 + r;
-        const int nx = x + col * colGap + 0x28, ny = y + 24 * r + 16;
-        g.scr.fillRect((nx / 8 - 2) * 8, ny, eraseW, 16, 0);
-        const int e = at(idx);
-        if (e < 0) continue;
-        char buf[16];
-        if (kind == 0) {
-          const int a = g.inventory[e][0];
-          g.drawText(nx, ny, core::rawName(reinterpret_cast<const uint8_t*>(g.db.items[a].name), 16), 15);
-          std::snprintf(buf, sizeof(buf), "%2d", g.inventory[e][1]);
-          g.drawText(nx + 0x80, ny, "\x81\x46" + std::string(buf), 15);
-        } else {
-          const Magic& mg = g.db.magics[e];
-          g.drawText(nx, ny, core::rawName(reinterpret_cast<const uint8_t*>(mg.name), 17), 15);
-          std::snprintf(buf, sizeof(buf), "[%2d]", mg.mpCost);
-          g.drawText(nx + 0x80, ny, buf, 15);
-        }
-      }
-    g.drawText(x + 8, y + 0x78, "\xEB\xB4", P > 0 ? 15 : 0);
-    g.drawText(x + 400, y + 0x78, "\xEB\xB5", at((P + 2) * 5) >= 0 ? 15 : 0);
-  };
-  auto curXY = [&](int p, int* cx, int* cy) {
-    *cx = x + (p / 5) * colGap + 0x18;
-    *cy = y + (p % 5) * 24 + 16;
-  };
-  drawPage();
-  g.clearKeys();
-  int t = 0;
-  for (;;) {
-    int cx, cy;
-    curXY(pos, &cx, &cy);
-    if (t < 4)
-      cursor(cx, cy, 15);
-    else if (t >= 21 && t <= 23)
-      cursor(cx, cy, 0);
-    g.vsync();
-    if (++t > 30) t = 0;
-    const int k = g.popKey();
-    if (k == kKeyNone) continue;
-    if (k == kKeyEsc) {
-      g.sfx(3);
-      return -1;
-    }
-    if (isOkKey(k)) {
-      g.sfx(2);
-      const int e = at(P * 5 + pos);
-      if (e >= 0) {
-        cursor(cx, cy, 15);
-        return kind == 0 ? g.inventory[e][0] : e;
-      }
-      continue;
-    }
-    const int oldP = P, oldPos = pos;
-    if (isUpKey(k)) {
-      g.sfx(1);
-      pos = (pos == 0) ? 4 : (pos == 5 ? 9 : pos - 1);
-    } else if (isDownKey(k)) {
-      g.sfx(1);
-      pos = (pos == 4) ? 0 : (pos == 9 ? 5 : pos + 1);
-    } else if (isRightKey(k)) {
-      g.sfx(1);
-      if (pos < 5)
-        pos += 5;
-      else if (at((P + 2) * 5) >= 0)
-        ++P;
-    } else if (isLeftKey(k)) {
-      g.sfx(1);
-      if (pos >= 5)
-        pos -= 5;
-      else if (P > 0)
-        --P;
-    } else {
-      continue;
-    }
-    if (P != oldP) {
-      drawPage();
-      t = 0;
-    } else if (pos != oldPos) {
-      int ox, oy;
-      curXY(oldPos, &ox, &oy);
-      cursor(ox, oy, 0);
-      t = 0;
-    }
-  }
-}
-
-// =============================================================================================
 // start / end (spec 24 §4, §5.3, §15)
 void Battle::transition() {
   g.vsync();
@@ -520,17 +415,15 @@ void Battle::prepare(int group) {
   for (int i = 0; i < 5; ++i)
     if (grp.enemies[i] != 0xFF) ids[n++] = grp.enemies[i];
   transition();
-  // background
+  // background (24 §4.2 step 3). loadBattleBg rejects files under 41008 bytes: then nothing is
+  // drawn, the palette is unchanged and the colour-14 fill of the transition remains.
   {
     char rel[32];
     std::snprintf(rel, sizeof(rel), "EBD_BKG/BKG%03u.EBD", unsigned(g.st.battleBg));
-    std::vector<uint8_t> d;
-    if (core::tryReadFile(g.root, rel, d) && d.size() >= 41008) {
-      BattleBg bg;
-      if (loadBattleBg(g.root, rel, bg)) {
-        setPal4(bg.pal);
-        std::memcpy(g.scr.pix + 104 * 640, bg.px.data(), size_t(640) * 128);
-      }
+    BattleBg bg;
+    if (loadBattleBg(g.root, rel, bg)) {
+      setPal4(bg.pal);
+      std::memcpy(g.scr.pix + 104 * 640, bg.px.data(), size_t(640) * 128);
     }
   }
   std::memcpy(bgCopy.data(), g.scr.pix, bgCopy.size());
@@ -766,7 +659,7 @@ top:
       } else if (c == 1) {
         redraw = true;
         b.action = kMagic;
-        const int m = listSelect(1, i);
+        const int m = magicListWindow(g, s[i].member, 144, 240);  // 23 §2.3 (shared)
         if (m < 0) {
           subCancel = true;
         } else {
@@ -783,7 +676,7 @@ top:
       } else if (c == 2) {
         redraw = true;
         b.action = kItem;
-        const int a = listSelect(0, i);
+        const int a = itemListWindow(g, 144, 240);  // 23 §2.3 (shared)
         if (a < 0) {
           subCancel = true;
         } else {
@@ -1548,7 +1441,7 @@ void Battle::attackType(Battler& c, const Magic& mg, int target) {
   clearLine(1);
   clearLine(2);
   bool fail = g.rng.next() % 100 >= mg.success;
-  // PROVISIONAL(Q2): the blind re-check draws even when the first check already failed.
+  // The blind re-check always draws, even when the success check already failed (24 §12.10.1 v1.1).
   if (c.status[1] && g.rng.next() % 10 < mg.atkCoef) fail = true;
   if (fail) {
     perTargetFail(t, mg);
@@ -1619,7 +1512,8 @@ void Battle::applyToTargets(Battler& c, const Magic& mg, int target, bool rev, b
       if (s[p].alive) fn(p);
   };
   auto allParty = [&](auto fn) {
-    for (int p = 0; p < partyN; ++p) fn(p);
+    for (int p = 0; p < partyN; ++p)
+      if (s[p].used) fn(p);  // empty slots are never targets (24 §19.17)
   };
   auto allEnemies = [&](auto fn) {
     for (int e = 0; e < enemyN; ++e)
@@ -1782,7 +1676,8 @@ void Battle::useItem(Battler& u, int a, int target) {
   } else if (kind == 6) {
     if (target >= 0 && target <= 9 && s[target].used) healItem(s[target], it);
   } else if (kind == 7) {
-    for (int p = 0; p < partyN; ++p) healItem(s[p], it);
+    for (int p = 0; p < partyN; ++p)
+      if (s[p].used) healItem(s[p], it);
   }
   if (kind == 8) {
     if (!effect && (mg.failKind == 0 || mg.failKind == 1)) {

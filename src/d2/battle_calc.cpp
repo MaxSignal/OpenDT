@@ -154,6 +154,21 @@ int64_t attackValue(const Battler& self, const Battler& e) {
   return d;
 }
 
+void classView(const EnemyImage& img, int sizeKind, std::vector<uint8_t>& mask, std::vector<uint8_t>& planes) {
+  const size_t n = size_t(sizeKind ? 20 : 10) * (sizeKind ? 128 : 96);
+  mask.assign(n, 0);
+  planes.assign(4 * n, 0);
+  if (!img.valid || img.w <= 0) return;
+  const size_t src = size_t(img.w / 8) * img.h;  // bytes per plane in the EGD
+  for (size_t i = 0; i < n && i < src; ++i) {
+    if (i < img.mask.size()) mask[i] = img.mask[i];
+    for (int p = 0; p < 4; ++p) {
+      const size_t o = p * src + i;
+      if (o < img.planes.size()) planes[p * n + i] = img.planes[o];
+    }
+  }
+}
+
 void initPartyBattler(Battler& b, const Member& m, int member, const Item items[256]) {
   b = Battler();
   b.used = true;

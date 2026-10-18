@@ -91,6 +91,12 @@ void actionOrder(core::Rng& rng, const Battler slots[10], int order[10]);       
 int64_t attackValue(const Battler& self, const Battler& e);                                            // §13.2
 bool magicBit(const Magic& mg, int n);
 
+// Image data as drawn for a battler of size class `sizeKind` (24 §12.3 v1.1): each EGD plane's
+// byte stream (EGD's own size) is read in rows of the class width (small 10 x 96, large 20 x 128);
+// bytes past the plane's end are 0. Output: mask and 4 planes, each classW/8*classH bytes.
+// An invalid image gives all-zero planes.
+void classView(const EnemyImage& img, int sizeKind, std::vector<uint8_t>& mask, std::vector<uint8_t>& planes);
+
 // Initialization helpers (spec 24 §5.1 / §5.2).
 void initPartyBattler(Battler& b, const Member& m, int member, const Item items[256]);
 void initEnemyBattler(Battler& b, const Enemy& e, int enemyNo);

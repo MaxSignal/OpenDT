@@ -303,3 +303,88 @@ TEST(d2bat_full_battle_deterministic) {
   CHECK(r3 != r1);
   if (a == 1) CHECK(g1 > 0);
 }
+
+// ---- spec v1.1 answers ----
+
+TEST(d2bat_class_view_reads_rows_of_class_width) {  // D2B-Q4 (24 §12.3)
+  EnemyImage small;
+  small.valid = true;
+  small.w = 80;
+  small.h = 96;
+  small.mask.assign(960, 0);
+  small.planes.assign(4 * 960, 0);
+  for (int i = 0; i < 960; ++i) {
+    small.mask[i] = uint8_t(i & 0xFF);
+    small.planes[i] = 1;            // B
+    small.planes[3 * 960 + i] = 9;  // I
+  }
+  std::vector<uint8_t> m, p;
+  classView(small, 0, m, p);  // same size: identity
+  CHECK_EQ(m.size(), size_t(960));
+  CHECK_EQ(m[959], 959 & 0xFF);
+  CHECK_EQ(p[3 * 960 + 5], 9);
+  classView(small, 1, m, p);  // large class: 20-byte rows, 960 bytes -> 48 rows, rest transparent
+  const size_t n = 20 * 128;
+  CHECK_EQ(m.size(), n);
+  CHECK_EQ(p.size(), 4 * n);
+  CHECK_EQ(m[20], 20);        // row 1 col 0 = source byte 20
+  CHECK_EQ(m[959], 959 & 0xFF);
+  CHECK_EQ(m[960], 0);        // past the plane: 0
+  CHECK_EQ(p[0], 1);
+  CHECK_EQ(p[960], 0);
+  CHECK_EQ(p[3 * n + 100], 9);
+  CHECK_EQ(p[3 * n + 960], 0);
+  // large EGD drawn as small: first 960 bytes of each plane in 10-byte rows
+  EnemyImage large;
+  large.valid = true;
+  large.w = 160;
+  large.h = 128;
+  large.mask.assign(2560, 7);
+  large.planes.assign(4 * 2560, 0);
+  large.planes[2560] = 5;  // R plane byte 0
+  classView(large, 0, m, p);
+  CHECK_EQ(m.size(), size_t(960));
+  CHECK_EQ(m[959], 7);
+  CHECK_EQ(p[960], 5);
+  // missing EGD: all planes empty
+  classView(EnemyImage(), 1, m, p);
+  bool allZero = true;
+  for (auto v : m) allZero = allZero && v == 0;
+  for (auto v : p) allZero = allZero && v == 0;
+  CHECK(allZero);
+}
+
+TEST(d2bat_variance_can_be_negative) {  // D2B-Q5 (24 §12.16 v1.1): no lower clamp
+  bool found = false;
+  for (uint32_t seed = 1; seed < 5000 && !found; ++seed) {
+    core::Rng r;
+    r.seed(seed);
+    const int64_t v = variance(r, 48, 25);
+    core::Rng q;
+    q.seed(seed);
+    int64_t e = 48 + q.next() % 3;
+    const int64_t t = e * 25 / 12;
+    e += t / 2 - q.next() % t;
+    CHECK_EQ(v, e);
+    if (v < 0) found = true;
+  }
+  CHECK(found);
+}
+
+TEST(d2bat_empty_party_slot) {  // D2B-Q9 (24 §19.17)
+  if (!core::isDirectory(kDino)) return;
+  MashHost h;
+  core::StartOptions opt;
+  Game g(h, kDino, opt);
+  g.rng.seed(3);
+  g.st.battleBg = 0;
+  const int c0 = g.st.party[0];
+  g.st.partyCount = 2;
+  g.st.party[1] = 12;  // corrupt member number -> empty slot, still counted
+  Member before[12];
+  std::memcpy(before, g.members, sizeof(before));
+  const int r = battle(g, 1, 0);
+  CHECK(r >= 1 && r <= 3);
+  for (int c = 0; c < 12; ++c)
+    if (c != c0) CHECK(std::memcmp(&before[c], &g.members[c], sizeof(Member)) == 0);
+}
