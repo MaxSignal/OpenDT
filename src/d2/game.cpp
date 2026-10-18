@@ -48,12 +48,13 @@ void Game::vsync() {
   host.vsync(scr);
   prev = cur;
   cur = host.input();
-  // key buffer and typematic (spec 01 §4.3): Esc, Return, Up, Down, Left, Right
-  const bool now[6] = {cur.cancel, cur.ok, cur.up, cur.down, cur.left, cur.right};
-  const bool was[6] = {prev.cancel, prev.ok, prev.up, prev.down, prev.left, prev.right};
-  static const uint8_t codes[6] = {kKeyEsc, kKeyReturn, kKeyUp, kKeyDown, kKeyLeft, kKeyRight};
+  // key buffer and typematic (spec 01 §4.3): Esc, Return, Up, Down, Left, Right, then the
+  // optional ROLL UP / ROLL DOWN extension (v1.1) with the same rules.
+  const bool now[8] = {cur.cancel, cur.ok, cur.up, cur.down, cur.left, cur.right, cur.rollUp, cur.rollDown};
+  const bool was[8] = {prev.cancel, prev.ok, prev.up, prev.down, prev.left, prev.right, prev.rollUp, prev.rollDown};
+  static const uint8_t codes[8] = {kKeyEsc, kKeyReturn, kKeyUp, kKeyDown, kKeyLeft, kKeyRight, kKeyRollUp, kKeyRollDown};
   bool any = false;
-  for (int k = 0; k < 6; ++k) {
+  for (int k = 0; k < 8; ++k) {
     if (now[k]) any = true;
     if (now[k] && !was[k]) {
       if (keyCount < 16) keyBuf[keyCount++] = codes[k];

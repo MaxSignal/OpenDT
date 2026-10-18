@@ -118,9 +118,9 @@ void Game::newGameInit() {
 }
 
 void Game::applyDebugStart(bool newGame) {
-  if (!newGame || debugApplied) return;
+  // Applied on every New Game (not Continue); only --battle is once per run (01 §9.2, v1.1).
+  if (!newGame) return;
   if (opt.gold >= 0) st.gold = uint32_t(opt.gold > 999999 ? 999999 : opt.gold);
-  debugApplied = true;
   for (int it : opt.items) addItem(it & 0xFF);
   if (opt.warp) {
     st.curMap = uint16_t(opt.warpMap);

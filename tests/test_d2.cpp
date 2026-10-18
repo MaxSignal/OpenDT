@@ -957,3 +957,148 @@ TEST(d2_default_map_and_short_picture) {
   CHECK(d2::loadPicture(tmp, "ebd_pct/pct002.ebd", pic));
   CHECK(pic.valid);
 }
+
+// =============================================================================================
+// Spec v1.1 changes (D2F-Q4, Q6, Q11, Q12, 01 §4.3 ROLL keys)
+namespace {
+std::string tmpGameDir(const char* name) {
+  const std::string dir = std::string("/tmp/claude-0/d2_v11_") + name;
+  std::string cmd = "rm -rf " + dir + " && mkdir -p " + dir + "/DAT_MAP " + dir + "/EBD_BKG";
+  if (std::system(cmd.c_str()) != 0) return std::string();
+  return dir;
+}
+std::vector<uint8_t> mapFile(int n, size_t cut) {
+  std::vector<uint8_t> d(0x2C + size_t(n) * n + 0x960 + 4 + 500, 0);
+  d[0] = uint8_t(n);
+  d[1] = 7;  // outer chip
+  for (size_t i = 0; i < size_t(n) * n; ++i) d[0x2C + i] = 9;
+  const size_t z = 0x2C + size_t(n) * n;
+  std::memset(&d[z], 0xFF, 0x960);
+  d[z] = 0x34;  // zone (0,0) condition low byte marker
+  core::wr16(&d[z + 0x960], 0xBEEF);    // version
+  core::wr16(&d[z + 0x962], 0);         // event area size
+  std::memset(&d[z + 0x964], 0xFF, 500);
+  if (cut < d.size()) d.resize(cut);
+  return d;
+}
+}  // namespace
+
+TEST(d2_v11_map_version_partial) {
+  const std::string dir = tmpGameDir("ver");
+  if (dir.empty()) return;
+  d2::StateBlock st{};
+  const size_t z = 0x2C + 32 * 32;
+  auto m = std::make_unique<d2::MapData>();
+  // cut before the version: previous version kept
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(32, z + 0x960)));
+  d2::loadMap(dir, 0, *m, st, 0x1234);
+  CHECK_EQ(m->version, 0x1234);
+  CHECK_EQ(m->zones[0], 0x34);
+  // one version byte present: only the low byte replaced
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(32, z + 0x961)));
+  d2::loadMap(dir, 0, *m, st, 0x1234);
+  CHECK_EQ(m->version, 0x12EF);
+  CHECK_EQ(m->eventAreaSize, 0);
+  // complete file
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(32, size_t(-1))));
+  d2::loadMap(dir, 0, *m, st, 0x1234);
+  CHECK_EQ(m->version, 0xBEEF);
+  // zones cut in the middle: byte-wise
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(32, z + 1)));
+  d2::loadMap(dir, 0, *m, st, 0x1234);
+  CHECK_EQ(m->zones[0], 0x34);
+  CHECK_EQ(m->zones[1], 0xFF);
+}
+
+TEST(d2_v11_map_size_raw_n) {
+  const std::string dir = tmpGameDir("size");
+  if (dir.empty()) return;
+  d2::StateBlock st{};
+  auto m = std::make_unique<d2::MapData>();
+  // N = 200: file offsets use the raw N, memory capped to 160
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(200, size_t(-1))));
+  d2::loadMap(dir, 0, *m, st, 0);
+  CHECK_EQ(m->n(), 160);
+  CHECK_EQ(m->zones[0], 0x34);
+  CHECK_EQ(m->version, 0xBEEF);
+  CHECK_EQ(m->grid[159][159], 9);
+  // N = 0: no crash, treated as size 1
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(0, size_t(-1))));
+  d2::loadMap(dir, 0, *m, st, 0);
+  CHECK_EQ(m->n(), 1);
+  CHECK_EQ(m->version, 0xBEEF);
+  CHECK_EQ(m->grid[0][1], 7);
+  // N = 48 (a normal size) unaffected
+  CHECK(core::writeFileAbs(dir + "/DAT_MAP/MAP000.DAT", mapFile(48, size_t(-1))));
+  d2::loadMap(dir, 0, *m, st, 0);
+  CHECK_EQ(m->n(), 48);
+  CHECK_EQ(m->grid[47][47], 9);
+  CHECK_EQ(m->grid[48][0], 7);
+}
+
+TEST(d2_v11_battle_bg_short_is_no_image) {
+  const std::string dir = tmpGameDir("bkg");
+  if (dir.empty()) return;
+  d2::BattleBg bg;
+  std::vector<uint8_t> d(41007, 1);
+  CHECK(core::writeFileAbs(dir + "/EBD_BKG/BKG000.EBD", d));
+  CHECK(!d2::loadBattleBg(dir, "EBD_BKG/BKG000.EBD", bg));
+  CHECK(!bg.valid);
+  d.resize(41008, 1);
+  CHECK(core::writeFileAbs(dir + "/EBD_BKG/BKG000.EBD", d));
+  CHECK(d2::loadBattleBg(dir, "EBD_BKG/BKG000.EBD", bg));
+  CHECK(bg.valid);
+  CHECK(!d2::loadBattleBg(dir, "EBD_BKG/BKG001.EBD", bg));
+}
+
+TEST(d2_v11_roll_keys_buffer) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  auto g = synthGame(host, d2::Build::B9710);
+  core::InputState up;
+  up.rollUp = true;
+  core::InputState down;
+  down.rollDown = true;
+  core::InputState none;
+  host.script.clear();
+  host.frame = 0;
+  host.script.push_back(up);
+  for (int i = 0; i < 40; ++i) host.script.push_back(up);  // held: repeat at 28, then every 3
+  host.script.push_back(none);
+  host.script.push_back(down);
+  host.script.push_back(none);
+  g->clearKeys();
+  g->cur = core::InputState();
+  for (size_t i = 0; i < host.script.size(); ++i) g->vsync();
+  std::vector<int> keys;
+  for (int k; (k = g->popKey()) != d2::kKeyNone;) keys.push_back(k);
+  // 41 frames held: press + repeats at counts 28, 31, 34, 37, 40 -> 6 ROLL UP, then 1 ROLL DOWN
+  int ups = 0, downs = 0;
+  for (int k : keys) {
+    if (k == d2::kKeyRollUp) ++ups;
+    if (k == d2::kKeyRollDown) ++downs;
+  }
+  CHECK_EQ(ups, 6);
+  CHECK_EQ(downs, 1);
+  CHECK_EQ(keys.back(), d2::kKeyRollDown);
+}
+
+TEST(d2_v11_debug_start_every_new_game) {
+  if (!have(kSynthRoot)) return;
+  RecHost host;
+  core::StartOptions opt;
+  opt.gold = 500;
+  opt.items = {3, 4};
+  auto g = std::make_unique<d2::Game>(host, kSynthRoot, opt);
+  for (int round = 0; round < 2; ++round) {
+    std::memset(g->inventory, 0, sizeof(g->inventory));
+    g->st.gold = 0;
+    g->applyDebugStart(true);
+    CHECK_EQ(g->st.gold, 500u);
+    CHECK_EQ(g->itemCount(3), 1);
+    CHECK_EQ(g->itemCount(4), 1);
+  }
+  g->st.gold = 0;
+  g->applyDebugStart(false);  // Continue: not applied
+  CHECK_EQ(g->st.gold, 0u);
+}

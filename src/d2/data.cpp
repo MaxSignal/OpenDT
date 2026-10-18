@@ -158,27 +158,51 @@ void loadMap(const std::string& root, int no, MapData& m, const StateBlock& st, 
   }
   m.fromFile = true;
   std::memcpy(&m.hdr, d.data(), sizeof(MapHeader));
-  int n = m.hdr.size;
-  if (n > kMapDim) n = kMapDim;  // safety
+  const int n = m.n();  // capped 1..160 for memory; raw N for file offsets
+  const size_t rawN = m.hdr.size;
   size_t p = 0x2C;
-  // grid
-  std::vector<uint8_t> grid(size_t(m.hdr.size) * m.hdr.size, 0);
-  for (size_t i = 0; i < grid.size() && p + i < d.size(); ++i) grid[i] = d[p + i];
-  p += grid.size();
+  // Reads are byte-wise: a 2-byte field cut in the middle only gets its low byte replaced
+  // (spec 20 §7.3, v1.1).
+  auto byteAt = [&](size_t off, uint8_t& dst) {
+    if (off < d.size()) dst = d[off];
+  };
+  // grid (row length = raw N)
   for (int y = 0; y < kMapDim; ++y)
-    for (int x = 0; x < kMapDim; ++x)
-      m.grid[y][x] = (x < n && y < n) ? grid[size_t(y) * m.hdr.size + x] : m.hdr.outerChip;
+    for (int x = 0; x < kMapDim; ++x) {
+      uint8_t v = 0;
+      if (x < n && y < n) {
+        byteAt(p + size_t(y) * rawN + x, v);
+      } else {
+        v = m.hdr.outerChip;
+      }
+      m.grid[y][x] = v;
+    }
+  p += rawN * rawN;
   // zones
-  if (p + 0x960 <= d.size()) std::memcpy(m.zones, &d[p], 0x960);
+  for (size_t i = 0; i < 0x960; ++i) byteAt(p + i, m.zones[i]);
   p += 0x960;
-  uint16_t version = 0;
-  if (p + 2 <= d.size()) version = core::rd16(&d[p]);
-  m.version = version;
+  // map version: no initial value; bytes absent from the file keep the previous map's value
+  m.version = prevVersion;
+  {
+    uint8_t b[2] = {uint8_t(prevVersion), uint8_t(prevVersion >> 8)};
+    byteAt(p, b[0]);
+    byteAt(p + 1, b[1]);
+    m.version = uint16_t(b[0] | (b[1] << 8));
+  }
   p += 2;
-  if (p + 2 <= d.size()) m.eventAreaSize = core::rd16(&d[p]);
+  {
+    uint8_t b[2] = {0, 0};
+    byteAt(p, b[0]);
+    byteAt(p + 1, b[1]);
+    m.eventAreaSize = uint16_t(b[0] | (b[1] << 8));
+  }
   p += 2;
-  for (int i = 0; i < kMaxEvents; ++i)
-    if (p + 2 * i + 2 <= d.size()) m.eventPos[i] = core::rd16(&d[p + 2 * i]);
+  for (int i = 0; i < kMaxEvents; ++i) {
+    uint8_t b[2] = {0xFF, 0xFF};
+    byteAt(p + 2 * i, b[0]);
+    byteAt(p + 2 * i + 1, b[1]);
+    m.eventPos[i] = uint16_t(b[0] | (b[1] << 8));
+  }
   p += 500;
   size_t s = m.eventAreaSize;
   if (s > size_t(kEventAreaSize)) s = kEventAreaSize;
@@ -262,7 +286,9 @@ bool loadEnemyImage(const std::string& root, const std::string& rel, EnemyImage&
 bool loadBattleBg(const std::string& root, const std::string& rel, BattleBg& out) {
   out.valid = false;
   std::vector<uint8_t> d;
-  if (!core::tryReadFile(root, rel, d) || d.size() < 48) return false;
+  // Files under 41008 bytes (or missing) mean "no image": draw nothing, keep the palette
+  // (spec 20 §8.5, v1.1).
+  if (!core::tryReadFile(root, rel, d) || d.size() < 41008) return false;
   for (int i = 0; i < 16; ++i)
     for (int k = 0; k < 3; ++k) out.pal[i][k] = d[i * 3 + k] & 0x0F;
   std::vector<uint8_t> body(4 * 0x2800, 0);

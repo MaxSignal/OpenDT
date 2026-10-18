@@ -62,6 +62,8 @@ std::vector<Step> parseScript(const std::string& text) {
             case 'r': s.in.right = true; break;
             case 'q': s.in.fast = true; break;
             case 'c': s.in.debug = true; break;
+            case 'p': s.in.rollUp = true; break;    // ROLL UP (01 §4.3 extension)
+            case 'n': s.in.rollDown = true; break;  // ROLL DOWN
             default: break;
           }
         }

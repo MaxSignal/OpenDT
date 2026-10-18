@@ -266,7 +266,9 @@ struct MapData {
   std::vector<uint8_t> eventArea = std::vector<uint8_t>(kEventAreaSize, 0);
   EventRec* events[kMaxEvents];     // pointers into eventArea or nullptr
 
-  int n() const { return hdr.size; }
+  // In-memory size: the raw header value capped to 1..160 (spec 20 §7.3.1 note). File offsets use
+  // the raw value (0x2C + N*N).
+  int n() const { return hdr.size == 0 ? 1 : (hdr.size > kMapDim ? kMapDim : hdr.size); }
   // Script bytes for a page (pointer + length incl. terminator); nullptr if out of range.
   const uint8_t* script(int ev, int page, uint16_t* len) const;
 };
@@ -341,6 +343,7 @@ void loadPatterns(const std::string& root, const std::string& rel, int count, Pa
 void loadChipAttr(const std::string& root, int no, ChipAttr& out);
 bool loadPicture(const std::string& root, const std::string& rel, Picture& out);
 bool loadEnemyImage(const std::string& root, const std::string& rel, EnemyImage& out);
+// Returns false ("no image": draw nothing, keep the palette) when missing or under 41008 bytes.
 bool loadBattleBg(const std::string& root, const std::string& rel, BattleBg& out);
 std::string numberedName(const char* prefix, int n, const char* ext);  // e.g. ("ECD_CHR/CHR",5,".ECD")
 

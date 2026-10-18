@@ -284,7 +284,7 @@ int Game::eventAll(int x, int y) const {
 int Game::sameLayerValue(int vx, int vy) const {
   const int x = wrap(viewX + vx), y = wrap(viewY + vy);
   if (st.shipMap == st.curMap && st.shipX == x && st.shipY == y) return kShipValue;
-  // PROVISIONAL(Q1): "足元チップ" is taken as the chip at the queried position.
+  // "足元チップ" is the chip at the queried position (spec 21 §5.6, v1.1; D2F-Q1).
   if ((attrAt(x, y) & 0x60) == 0x60 || st.layer != 0) return lowerMap[y % kMapDim][x % kMapDim];
   return upperMap[y % kMapDim][x % kMapDim];
 }
@@ -657,7 +657,7 @@ void Game::npcProcess(int i) {
           } else {
             d = (rng.next() & 3) * 2 + 2;
           }
-          // PROVISIONAL: direction "none" -> do nothing (spec 21 §8.3 note)
+          // direction "none" -> do nothing (spec 21 §8.3)
           if (d && npcTryStep(i, d, false))
             e->timer = uint8_t(type == 5 ? rng.next() % 8 + 20 : rng.next() % 4 + 28);
         }

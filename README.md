@@ -55,6 +55,7 @@ build/dante98cr <ゲームのフォルダ | ゲームが入ったフォルダ> [
 | X / Esc / Backspace | 取消・メニュー |
 | Q / Shift | メッセージ早送り（D1 の Q、D2 の SHIFT） |
 | Ctrl | デバッグ（D1 の進行モニタ、D2 テストプレイの STOP は Esc+Ctrl） |
+| Page Up / Page Down | PC-98 の ROLL UP / ROLL DOWN（D2 デバッグメニューの変数エディタで値 +1 / −1） |
 | Tab（押している間） | 早送り |
 | F12 | スクリーンショット（`dante98cr_NNN.png`） |
 | Alt+Enter | 全画面切り替え |
@@ -67,8 +68,8 @@ build/dante98cr-headless GAMEDIR -k "60 shot:title 30 z 30 z 150 shot:start" -o 
 build/dante98cr-headless --games FOLDER -o OUTDIR
 ```
 
-台本の語: `N`（N フレーム待つ）、`z x u d l r q c`（決定・取消・上下左右・高速・Ctrl を同時押し、`*N` で N フレーム
-押し続ける）、`shot:名前`、`quit`。
+台本の語: `N`（N フレーム待つ）、`z x u d l r q c p n`（決定・取消・上下左右・高速・Ctrl・ROLL UP・ROLL DOWN を
+同時押し、`*N` で N フレーム押し続ける）、`shot:名前`、`quit`。
 
 ## テスト
 

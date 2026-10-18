@@ -143,6 +143,8 @@ core::InputState readKeys(bool* ff) {
   s.cancel = k[SDL_SCANCODE_X] || k[SDL_SCANCODE_ESCAPE] || k[SDL_SCANCODE_BACKSPACE];
   s.fast = k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_LSHIFT] || k[SDL_SCANCODE_RSHIFT];
   s.debug = k[SDL_SCANCODE_LCTRL] || k[SDL_SCANCODE_RCTRL];
+  s.rollUp = k[SDL_SCANCODE_PAGEUP];      // ROLL UP (01 §4.3 extension)
+  s.rollDown = k[SDL_SCANCODE_PAGEDOWN];  // ROLL DOWN
   if (k[SDL_SCANCODE_LALT] || k[SDL_SCANCODE_RALT]) s.ok = false;
   *ff = k[SDL_SCANCODE_TAB];
   return s;

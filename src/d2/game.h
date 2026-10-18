@@ -102,8 +102,7 @@ class Game : public core::Engine {
   int shadowCounter = 0;
   uint32_t lastCycle = 0;             // main loop recorded counter
   std::string embed;                  // embedded string for "\@" (events / shops)
-  bool debugApplied = false;          // --gold/--item/--warp applied
-  bool debugBattleDone = false;       // --battle applied
+  bool debugBattleDone = false;       // --battle applied (once per program run)
 
   // ===== frame / time helpers (spec 21 §1) =====
   void vsync();                        // one VSYNC: counters, shadow, present, input, key buffer

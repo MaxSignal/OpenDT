@@ -13,6 +13,9 @@ namespace core {
 struct InputState {
   bool up = false, down = false, left = false, right = false;
   bool ok = false, cancel = false, fast = false, debug = false;
+  // Optional extension (01 §4.3, v1.1): PC-98 ROLL UP / ROLL DOWN, used only by the D2 debug
+  // menu's variable editor.
+  bool rollUp = false, rollDown = false;
 };
 
 // Sound requests (spec 01 §8.1).
