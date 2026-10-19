@@ -35,8 +35,8 @@ Source: `questions/music.md`
 with the bundled ymfm (OPN_FIDELITY_MIN, prescaler 1/6 selected by a write to address 0x2D) the SSG engine runs at φM/16 = 249,600 Hz,
 so period 477 is ≈ 262 Hz and O4 A (period 283) is 441 Hz (the same octave as FM O4 A = 440 Hz).
 The spectral peaks match the reference audio exactly (SOUND.DAT @15 in reference_audio/come.wav and agasa.wav, @12 in kokoro.wav),
-so we concluded that OpenDante98's actual output is also this (≈262 Hz) and use ymfm's behavior as is.
-We would like to confirm whether the "≈131 Hz" in §3.10.4 is a calculation error in the text, or whether OpenDante98 uses a different setting.
+so we concluded that the reference implementation's actual output is also this (≈262 Hz) and use ymfm's behavior as is.
+We would like to confirm whether the "≈131 Hz" in §3.10.4 is a calculation error in the text, or whether the reference implementation uses a different setting.
 
 ### M-Q2. Power-on initial value of the vibrato direction (§3.2)
 The spec says "the initial values at driver startup are all 0", but does not state whether a vibrato "direction" of 0 means up or down.
@@ -61,7 +61,7 @@ No sample uses such a value.
   until the sound effect rewrites them at the next audio-side VSYNC (1–4 chip samples later). The only differences from the reference audio are
   spikes in the first 1–2 output samples of frames 211, 213 and 215 (maximum difference 2502) and a ±1 tail from the DC cut (up to frame 221); 99.5% of the whole matches.
 - Experiment: making the fade **write no registers at all** gave a 100% sample match with the reference audio for both come and agasa.
-  So OpenDante98 apparently does not write the SSG volume registers in this situation (or the writes do not show up in the output).
+  So the reference implementation apparently does not write the SSG volume registers in this situation (or the writes do not show up in the output).
   However, this data cannot distinguish which of the following rules applies:
   (a) Channels for which no song has ever been played (or that have never been initialized) are not written (like the FM rule "do not write if no voice has been loaded")
   (b) Nothing is written while stopped (playing flag off)
@@ -88,11 +88,11 @@ Source: `questions/d1.md`
 Points where the spec is ambiguous or undefined, found while implementing D1 (src/d1). Stopgap implementations are marked `PROVISIONAL(Qn)` in the code.
 
 ### D1-Q1. Event instructions 0x76 / 0x77 with an argument other than '0'–'7' (end of chapter 11 §8.2)
-- Spec: "In OpenDante98 this is an out-of-range reference (undefined behavior) 【未確認】 (unverified)".
+- Spec: "In the reference implementation this is an out-of-range reference (undefined behavior) 【未確認】 (unverified)".
 - Stopgap implementation: if the argument is out of range, skip the instruction without doing anything (advance by the total length 2). Does not occur in the samples.
 
 ### D1-Q2. Action bit 6 (steal MP) when the target is "none" (the attacking side is the enemy side) (chapter 12 §10.3 note, §12.12)
-- Spec: the original's behavior is unknown (an out-of-range reference in OpenDante98).
+- Spec: the original's behavior is unknown (an out-of-range reference in the reference implementation).
 - Stopgap implementation: the random numbers (2 fluctuation draws) are drawn, nobody's MP is reduced, and 「はＭＰを{量} p.奪われた！;」 ("…had {amount} MP stolen!") is output with the name as an empty string.
 
 ### D1-Q3. Fast key pressed during a key-press wait (chapter 11 §1.3)

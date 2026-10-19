@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -11,6 +12,7 @@
 #include <thread>
 #include <vector>
 #include <filesystem>
+#include <system_error>
 
 #include "app/games.h"
 #include "core/host.h"
@@ -236,22 +238,44 @@ void usage() {
 }
 
 // Directory of the executable (UTF-8), used when the current directory is unusable (spec 01 §7.5).
+// Inside a macOS app bundle this is the folder that contains the .app.
 std::string exeDir() {
   std::string r;
   if (char* b = SDL_GetBasePath()) {
     r = b;
     SDL_free(b);
   }
+  const size_t app = r.find(".app/Contents/");
+  if (app != std::string::npos) {
+    const size_t slash = r.rfind('/', app);
+    r = slash == std::string::npos ? std::string(".") : r.substr(0, slash + 1);
+  }
   return r.empty() ? std::string(".") : r;
 }
 
-// Default folder: the current directory, unless it is empty or a filesystem root (e.g. when started from a
-// desktop shortcut or a macOS app bundle); then the executable's directory.
+std::string homeDir() {
+#ifdef _WIN32
+  const char* h = std::getenv("USERPROFILE");
+#else
+  const char* h = std::getenv("HOME");
+#endif
+  return h ? std::string(h) : std::string();
+}
+
+bool samePath(const std::string& a, const std::string& b) {
+  if (a.empty() || b.empty()) return false;
+  std::error_code ec;
+  return std::filesystem::equivalent(std::filesystem::u8path(a), std::filesystem::u8path(b), ec) && !ec;
+}
+
+// Default folder: the current directory, unless it is empty, a filesystem root or the user's home folder;
+// then the executable's directory. Programs started from a desktop shortcut, a macOS app bundle or by
+// double-clicking in the macOS Finder (which opens Terminal in the home folder) thus look next to themselves.
 std::string defaultFolder() {
   const std::string cwd = core::currentDir();
   if (!cwd.empty()) {
     const std::filesystem::path p = std::filesystem::u8path(cwd);
-    if (p != p.root_path()) return cwd;
+    if (p != p.root_path() && !samePath(cwd, homeDir())) return cwd;
   }
   return exeDir();
 }
@@ -285,6 +309,7 @@ int main(int argc, char** argv) {
       folder = a;
   }
   if (folder.empty()) folder = defaultFolder();
+  if (opt.verbose) std::fprintf(stderr, "folder: %s\n", folder.c_str());
   if (!core::isDirectory(folder)) {
     std::fprintf(stderr, "error: %s is not a directory\n", folder.c_str());
     return 1;

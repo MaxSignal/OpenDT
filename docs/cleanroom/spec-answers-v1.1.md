@@ -2,7 +2,7 @@ Translated from the Japanese original supplied by the specification team.
 
 # Answers to the Specification Questions (spec team → clean-room team)
 
-These are the answers to all 50 questions and the 1 supplementary item in spec-questions.md. Each answer comes from checking the behavior of the existing implementation (OpenDante98). The 4 sound-driver questions were also backed by register-write logs from the verification harness or by measurements with ymfm on its own. The specification has been updated to v1.1. Changed passages carry "(fixed in v1.1)" or "(added in v1.1)" at the end of the sentence.
+These are the answers to all 50 questions and the 1 supplementary item in spec-questions.md. Each answer comes from checking the behavior of the existing reference implementation. The 4 sound-driver questions were also backed by register-write logs from the verification harness or by measurements with ymfm on its own. The specification has been updated to v1.1. Changed passages carry "(fixed in v1.1)" or "(added in v1.1)" at the end of the sentence.
 
 ## Summary: items that require implementation changes on the clean-room side
 
@@ -38,17 +38,17 @@ These are the answers to all 50 questions and the 1 supplementary item in spec-q
 # Answers on the sound driver (chapter 02) (owner: music)
 
 Scope: spec-questions.md, section 「音源ドライバ（02 章）」 ("Sound driver (chapter 02)") M-Q1 to M-Q6, plus 「補足（修正済み）: チャンネル状態の起動時初期値」 ("Supplement (fixed): startup initial values of channel state").
-Verification: checked OpenDante98's behavior, register-write logs from a standalone driver verification harness, SSG frequency measurements with ymfm on its own,
-and regenerating the come reference audio with d98run and confirming a byte-exact match (reference_audio/come.wav is exactly the output of the current OpenDante98).
+Verification: checked the reference implementation's behavior, register-write logs from a standalone driver verification harness, SSG frequency measurements with ymfm on its own,
+and regenerating the come reference audio with the reference implementation and confirming a byte-exact match (reference_audio/come.wav is exactly the output of the current reference implementation).
 
 ### M-Q1. SSG pitch (reference values in §3.10.4)
 
-**Answer**: Spec error. The clean-room team's observation (≈262 Hz) is correct. Immediately after creating ymfm's YM2203 at the lowest fidelity, OpenDante98
+**Answer**: Spec error. The clean-room team's observation (≈262 Hz) is correct. Immediately after creating ymfm's YM2203 at the lowest fidelity, the reference implementation
 performs only an address write of 0x2D (no data write) to select the 1/6 prescaler. It makes no other divider settings. With ymfm configured this way,
 the SSG's internal counter advances at φM/16 = 249,600 Hz (3 ticks per 2 samples of the 166,400 Hz output), and the tone output toggles
 each time it has counted the period value. Hence SSG frequency = φM / (32 × period). Measured with ymfm on its own: period 477 → 261.5 Hz, 283 → 441.0 Hz.
 FM and SSG given the same octave sound at the same pitch. The v1.0 value "≈131 Hz" was computed with the datasheet formula φM/(64×period) and
-is one octave off from ymfm's output. Which of the two real hardware produces is 【未確認】 (unconfirmed), but this specification treats OpenDante98's (ymfm's) output as authoritative.
+is one octave off from ymfm's output. Which of the two real hardware produces is 【未確認】 (unconfirmed), but this specification treats the reference implementation's (ymfm's) output as authoritative.
 
 **Spec change**: Corrected the parenthetical reference note in chapter 02 §3.10.4 (the SSG counting clock and frequency formula, 477 ≈ 261.6 Hz, O4A ≈ 441 Hz).
 Also rewrote 「FM と SSG の音程関係」 ("pitch relationship between FM and SSG") under 「未確認事項・注意」 ("Unconfirmed items and notes"). Added acceptance-test item 19.
@@ -66,7 +66,7 @@ and subtracting from the period for SSG.
 
 ### M-Q3. Invalid characters in an SSGENV line (§2.8)
 
-**Answer**: Undefined in OpenDante98 as well. At the invalid character the read position stops advancing and it keeps appending 0 indefinitely (effectively a hang).
+**Answer**: Undefined in the reference implementation as well. At the invalid character the read position stops advancing and it keeps appending 0 indefinitely (effectively a hang).
 The recommendation is the clean-room provisional implementation: "stop reading the line at that position. Do not append a value at the invalid character (only the values read up to that point remain)."
 No sample contains such a line.
 
@@ -118,7 +118,7 @@ Everything else (after playback has started, always write, even while stopped or
 
 **Answer**: "Initial values at driver startup are all 0" is a rule about **state that is not reset at song start** (hardware envelope, soft-envelope period and
 read position, tremolo/vibrato counters and directions, portamento, soft-LFO accumulators, etc.). The startup values of state that is reset at song start
-(volume, current soft-envelope value, octave, default length, gate, Q, etc.) are not observable in OpenDante98.
+(volume, current soft-envelope value, octave, default length, gate, Q, etc.) are not observable in the reference implementation.
 The only path through which they could be observed before the first playback start is the fade, and per M-Q5 nothing is written there. Therefore, once the M-Q5 rule
 (fades write nothing while uninitialized) is in place, it makes no difference whether these startup values are 0 or the song-start values.
 The differences the clean-room team observed (different rms, spikes at frames 211–221) were caused not by the startup values but by writes from fades
@@ -147,12 +147,12 @@ and added a note explaining why. Added acceptance-test item 20.
 # Answers to D1 questions (chapters 10, 11, 12, 19) (owner: d1)
 
 ### D1-Q1. When the argument of event instruction 0x76 / 0x77 is not '0'–'7'
-**Answer**: Undefined in OpenDante98 as well. For '8' or above, the movement direction falls outside 0–3 and causes an out-of-range access. Below '0', a value other than 0–3 is stored as the facing; on screen it appears as the direction "k mod 4", but for the hero a subsequent "examine" or screen transition causes an out-of-range access. Recommendation: "do nothing (do not close the message window either) and just advance by the total length of 2". When 0x76 meets the conditions "slot number ≥ number of objects" or "graphic ≥ 0x40 with motion type 0", it does nothing anyway, so the result is the same.
+**Answer**: Undefined in the reference implementation as well. For '8' or above, the movement direction falls outside 0–3 and causes an out-of-range access. Below '0', a value other than 0–3 is stored as the facing; on screen it appears as the direction "k mod 4", but for the hero a subsequent "examine" or screen transition causes an out-of-range access. Recommendation: "do nothing (do not close the message window either) and just advance by the total length of 2". When 0x76 meets the conditions "slot number ≥ number of objects" or "graphic ≥ 0x40 with motion type 0", it does nothing anyway, so the result is the same.
 **Spec change**: Added the k < 0 case and the recommended handling to the end of the paragraph 「上記以外の命令コード」 ("other instruction codes") in chapter 11 §8.2.
 **Clean-room provisional implementation**: Confirmed.
 
 ### D1-Q2. Action bit 6 (steal MP) when the target is "none"
-**Answer**: Undefined in OpenDante98 as well (out-of-range access). The recommendation is the clean-room provisional implementation: draw the two random numbers of 乱数幅付け(10) ("random spread(10)"), reduce nobody's MP, use an empty string for the name, and output 「はＭＰを{量} p.奪われた！;」 ("…had {amount} MP stolen!"). In addition, a status update (redrawing the status window) is performed afterwards. It makes no visible difference.
+**Answer**: Undefined in the reference implementation as well (out-of-range access). The recommendation is the clean-room provisional implementation: draw the two random numbers of 乱数幅付け(10) ("random spread(10)"), reduce nobody's MP, use an empty string for the name, and output 「はＭＰを{量} p.奪われた！;」 ("…had {amount} MP stolen!"). In addition, a status update (redrawing the status window) is performed afterwards. It makes no visible difference.
 **Spec change**: Added the recommended handling to the note in chapter 12 §10.3, §12.12 step 4, and 「未確認事項・注意」 ("Unconfirmed items and notes"). Also annotated the corresponding row in chapter 19 §7.2.
 **Clean-room provisional implementation**: Confirmed (if the status window is not being redrawn, the redraw may be added, but it makes no difference on screen).
 
@@ -172,21 +172,21 @@ and added a note explaining why. Added acceptance-test item 20.
 **Clean-room provisional implementation**: Confirmed (an implementation that resumes from 1.1 is correct).
 
 ### D1-Q6. When the target of in-battle damage processing or damage display is an empty slot (character number 0xFF)
-**Answer**: OpenDante98 handles it mostly like the provisional implementation: the name is an empty string, the target is treated as not alive, and its status reads as 0. Note, however, the following differences from "a member with 0 HP":
+**Answer**: The reference implementation handles it mostly like the provisional implementation: the name is an empty string, the target is treated as not alive, and its status reads as 0. Note, however, the following differences from "a member with 0 HP":
 - HP increases/decreases change nothing, and "fell" is returned regardless of the sign of d. For an attack spell this yields 「{空}は{量} p.のダメージ！#」 ("{empty} takes {amount} points of damage!") → screen shake → 「{空}は気絶してしまった‥‥」 ("{empty} has fainted..."), which looks the same as 0 HP.
 - Setting and clearing status bits are discarded. The result values of spells 8–12 are as in the table; spell 11 gives 9 (「混乱してしまった」, "became confused"). Spell 7 fails.
 - Stat changes change nothing, but are displayed as in the table.
 - Revival (spell 6) fails (a member with 0 HP would be revived).
 - Instant death draws one random number and, on success, shows the defeat display without changing anything.
 - MP does not increase or decrease.
-- If the target of normal-attack damage calculation is an empty slot, reading defense and luck causes an out-of-range access in OpenDante98 as well. However, a target that is not alive is re-selected before the normal attack, so this does not happen on normal paths.
+- If the target of normal-attack damage calculation is an empty slot, reading defense and luck causes an out-of-range access in the reference implementation as well. However, a target that is not alive is re-selected before the normal attack, so this does not happen on normal paths.
 
 The most likely case is when slot 0 is empty and "magic #0, target 0" is left over. In that case, the target check prints 「は気絶している‥‥」 ("...is unconscious...", with no name), the action is invalidated, and only the MP is consumed.
 **Spec change**: Added "when an empty slot becomes the current target" to chapter 12 §1.2.
 **Clean-room provisional implementation**: Confirmed. However, verify that two points hold: revival does not bring the target back, and status and MP are not overwritten. If not, change it as described above.
 
 ### D1-Q7. Is the target's name prefixed to 「は隠れている‥‥;」 ("...is hiding...")?
-**Answer**: Yes. In OpenDante98 (based on analysis of the original), the "hiding" check and its output are a single shared routine, which always outputs the target's name before 「は隠れている‥‥;」. The wording in chapter 12 §13.3 (overall self-destruct processing) and §13.4 (magic resistance check) was an abbreviation and is a spec error.
+**Answer**: Yes. In the reference implementation (based on analysis of the original), the "hiding" check and its output are a single shared routine, which always outputs the target's name before 「は隠れている‥‥;」. The wording in chapter 12 §13.3 (overall self-destruct processing) and §13.4 (magic resistance check) was an abbreviation and is a spec error.
 **Spec change**: Corrected chapter 12 §13.3 and §13.4 to "target's name" + 「は隠れている‥‥;」. Also added "always prefixed with the name" to the general description in §12.8. Annotated the corresponding row in chapter 19 §7.3.
 **Clean-room provisional implementation**: Confirmed.
 
@@ -196,13 +196,13 @@ The most likely case is when slot 0 is empty and "magic #0, target 0" is left ov
 **Clean-room provisional implementation**: Change required. Make these two places waits that do not look at the fast key (exit only on confirm, cancel, or a direction key).
 
 ### A note on the observation tool
-This is outside OpenDante98's behavior, so it is a guess. In the original DOS, ";" is not a command separator, so writing `MUSIC -R;RPG` on one line may not run as two commands as intended. Running MUSIC -R and RPG in sequence on separate lines (in a batch file) is a better way to check. Also, D1's RPG.EXE uses the driver's interrupt, so check that the emulator has the FM sound board (PC-9801-26K equivalent) enabled.
+This is outside the reference implementation's behavior, so it is a guess. In the original DOS, ";" is not a command separator, so writing `MUSIC -R;RPG` on one line may not run as two commands as intended. Running MUSIC -R and RPG in sequence on separate lines (in a batch file) is a better way to check. Also, D1's RPG.EXE uses the driver's interrupt, so check that the emulator has the FM sound board (PC-9801-26K equivalent) enabled.
 
 ---
 
 # Answers: D2 data and field (D2F-Q1 to Q12) / D2 events (D2E-Q1 to Q8)
 
-Owner: d2fe. Basis: OpenDante98's behavior (source inspection, measured with d98run where necessary).
+Owner: d2fe. Basis: the reference implementation's behavior (source inspection, measured with the reference implementation where necessary).
 
 ---
 
@@ -238,7 +238,7 @@ Owner: d2fe. Basis: OpenDante98's behavior (source inspection, measured with d98
 
 ### D2F-Q6. When the map size N is not one of the 9 steps
 **Answer**: Any value from 1 to 160 works as-is with no special handling, even if it is not one of the steps. N is used for the row length and for the area-table position 0x2C+N², and positions at or beyond N become the outer-border chip.
-- When N exceeds 160: OpenDante98 writes outside its 160×160 array, so this is undefined.
+- When N exceeds 160: the reference implementation writes outside its 160×160 array, so this is undefined.
 - When N = 0: the modulo divisor becomes 0, so this is undefined.
 
 Recommendation: "compute file offsets with the raw N, and cap the in-memory size (range checks, modulo, drawing) at 160". For N = 0, any handling that does not crash (such as treating it as 1) is acceptable. Real data contains no such case.
@@ -251,9 +251,9 @@ Recommendation: "compute file offsets with the raw N, and cap the in-memory size
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2F-Q8. Matching an SJIS BGM name against host file names (converted to UTF-8)
-**Answer**: OpenDante98 uses the SJIS byte sequence as-is in the path. It compares against directory entry names on disk (UTF-8) after uppercasing ASCII letters only, so files that have been converted to UTF-8 are **not found and play silence**. Example measured with d98run: in fant1_8, moving to MAP026 and fighting a battle, the battle BGM 「戦闘」 ("Battle") gives `missing DAT_BGM/戦闘.MML` (SJIS byte sequence), and nothing plays even though `DAT_BGM/戦闘.MML` (UTF-8 name) exists.
-In the original (DOS) it plays, so the clean-room approach of "search with the SJIS name, and if not found, search with the name converted to UTF-8" is accepted as an improvement in line with the recommendation in 01 §6.1. However, the audio in that scene will then no longer match OpenDante98's reference output (silence).
-**Spec change**: Added to chapter 21 §9.4 OpenDante98's behavior, the verification example, the allowance for the improvement, and the difference from the reference output. Also added a cross-reference from 0x46 in chapter 22 (both added in v1.1).
+**Answer**: The reference implementation uses the SJIS byte sequence as-is in the path. It compares against directory entry names on disk (UTF-8) after uppercasing ASCII letters only, so files that have been converted to UTF-8 are **not found and play silence**. Example measured with the reference implementation: in fant1_8, moving to MAP026 and fighting a battle, the battle BGM 「戦闘」 ("Battle") gives `missing DAT_BGM/戦闘.MML` (SJIS byte sequence), and nothing plays even though `DAT_BGM/戦闘.MML` (UTF-8 name) exists.
+In the original (DOS) it plays, so the clean-room approach of "search with the SJIS name, and if not found, search with the name converted to UTF-8" is accepted as an improvement in line with the recommendation in 01 §6.1. However, the audio in that scene will then no longer match the reference implementation's reference output (silence).
+**Spec change**: Added to chapter 21 §9.4 the reference implementation's behavior, the verification example, the allowance for the improvement, and the difference from the reference output. Also added a cross-reference from 0x46 in chapter 22 (both added in v1.1).
 **Clean-room provisional implementation**: Confirmed (as an improvement). Take this difference into account when comparing against the reference output.
 
 ### D2F-Q9. Scope of "once only" for `--battle`
@@ -288,17 +288,17 @@ This affects the version comparison on load and the value written to saves, but 
 
 ### D2E-Q1. Is the "." of the cancel item counted in the choice window width?
 **Answer**: No. Each item's length is measured after removing its leading ".". This applies to every item that has a ".", including those not chosen as the cancel item.
-Measured on fant1_8 MAP004 event 0 (d98run, starting the auto event with `--warp 4,6,6` and selecting 「何か買う」 ("Buy something")). The left edge of the window for the nested choice 「道具／薬類／装備品／.前のメニューに戻る」 ("Tools / Medicines / Equipment / .Back to previous menu") was **x = 368** (w = 18, 0x200−144). The 「いいえ」 ("No") of 0x08 (6 bytes, x = 0x1D0) follows the same rule.
+Measured on fant1_8 MAP004 event 0 (reference implementation, starting the auto event with `--warp 4,6,6` and selecting 「何か買う」 ("Buy something")). The left edge of the window for the nested choice 「道具／薬類／装備品／.前のメニューに戻る」 ("Tools / Medicines / Equipment / .Back to previous menu") was **x = 368** (w = 18, 0x200−144). The 「いいえ」 ("No") of 0x08 (6 bytes, x = 0x1D0) follows the same rule.
 **Spec change**: Made explicit in chapter 22 §8 0x09 step 4 that the length is counted without the ".", with the measured example (fixed in v1.1).
 **Clean-room provisional implementation**: Change required. Compute w from the length without the "." (in the fant1_8 example, 360 → 368).
 
 ### D2E-Q2. Meaning of "field redraw request"
-**Answer**: Nothing is drawn on the spot. The change is reflected the next time a full redraw of the field occurs. Such occasions include the hero update in the tick, closing the message window, the redraw in 0x50/0x51, and the main loop's hero processing after an event ends. In OpenDante98 this flag is only set and is never read anywhere. The same applies to 0x0A (erase event) and temporary erasure: the event disappears on the next draw.
+**Answer**: Nothing is drawn on the spot. The change is reflected the next time a full redraw of the field occurs. Such occasions include the hero update in the tick, closing the message window, the redraw in 0x50/0x51, and the main loop's hero processing after an event ends. In the reference implementation this flag is only set and is never read anywhere. The same applies to 0x0A (erase event) and temporary erasure: the event disappears on the next draw.
 **Spec change**: Added a definition of 「フィールド再描画要求」 ("field redraw request") to chapter 22 §6.1 (added in v1.1).
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2E-Q3. Conditional branches 0x0C/0x0D and invalid party-slot values (12 or more)
-**Answer**: Undefined in OpenDante98 as well; it accesses outside the hero records. The same happens in commands targeting 0x0D (0x1E–0x2C) and in the game-over check. Recommendation: skip that slot, so that it does not make "anyone" true and does not make "everyone" false. Normally a party slot never holds 12 or more (it can only happen if 0x1C adds a value of 12 or more).
+**Answer**: Undefined in the reference implementation as well; it accesses outside the hero records. The same happens in commands targeting 0x0D (0x1E–0x2C) and in the game-over check. Recommendation: skip that slot, so that it does not make "anyone" true and does not make "everyone" false. Normally a party slot never holds 12 or more (it can only happen if 0x1C adds a value of 12 or more).
 **Spec change**: Added to chapter 22 §7.2 (added in v1.1).
 **Clean-room provisional implementation**: Confirmed (skip).
 
@@ -321,7 +321,7 @@ Measured on fant1_8 MAP004 event 0 (d98run, starting the auto event with `--warp
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2E-Q7. Palette when the EBD file in 0x3A is short or missing
-**Answer**: As written, the palette is not changed. As a result, applying T = 100 shows a solid screen in color 0 of the previous map's palette (with the color tone applied). On maps where color 0 is not black, this is a non-black solid color, and that is OpenDante98's behavior. For the second and subsequent images in a sequence, the result is the same, since step 8 of the previous 0x3A has already restored the map's palette.
+**Answer**: As written, the palette is not changed. As a result, applying T = 100 shows a solid screen in color 0 of the previous map's palette (with the color tone applied). On maps where color 0 is not black, this is a non-black solid color, and that is the reference implementation's behavior. For the second and subsequent images in a sequence, the result is the same, since step 8 of the previous 0x3A has already restored the map's palette.
 **Spec change**: Made explicit in chapter 22 §8 0x3A step 3 (added in v1.1).
 **Clean-room provisional implementation**: Confirmed.
 
@@ -341,17 +341,17 @@ Scope: D2M-Q1 to Q7 and D2B-Q1 to Q9 in spec-questions.md. Chapters modified: 23
 ## D2 menus (chapter 23)
 
 ### D2M-Q1. When STOP occurs during the key wait after a switch-type item or spell
-**Answer**: Undefined in OpenDante98 as well. In the original, execution would jump to the event-abort return point even though no event is running; in OpenDante98 there is nothing to catch the abort, and it terminates abnormally. The clean-room provisional handling (catch the abort inside the menu, set the flag to 0, and close the menu) is confirmed as the recommendation. At this point the switch is already ON, a consumable item has already been removed, and the spell's MP has already been spent. Since it is switch-type, there is no cave-escape or warp request, and the final state is the same as when exiting normally with a key (§3.5 step 6 → close without fade). Warp and cave escape return without waiting for a key after setting the flag, so there is no opportunity for STOP to occur.
+**Answer**: Undefined in the reference implementation as well. In the original, execution would jump to the event-abort return point even though no event is running; in the reference implementation there is nothing to catch the abort, and it terminates abnormally. The clean-room provisional handling (catch the abort inside the menu, set the flag to 0, and close the menu) is confirmed as the recommendation. At this point the switch is already ON, a consumable item has already been removed, and the spell's MP has already been spent. Since it is switch-type, there is no cave-escape or warp request, and the final state is the same as when exiting normally with a key (§3.5 step 6 → close without fade). Warp and cave escape return without waiting for a key after setting the flag, so there is no opportunity for STOP to occur.
 **Spec change**: Added "STOP during the key wait after a switch-type effect" to chapter 23 §3.5 step 6.
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2M-Q2. ROLL UP / ROLL DOWN in the variable editor
-**Answer**: They may be added (an optional extension). OpenDante98 cannot input these two keys either, so values cannot be changed there. Add two booleans, ROLL UP and ROLL DOWN, to the input state; when filling the key buffer, append them after the six keys in the order ROLL UP → ROLL DOWN, and handle them by the same rules (add a keystroke at the moment of pressing, repeat, repeat release). The keystroke codes are 0x36 / 0x37. Recommended mapping: PageUp = ROLL UP (+1), PageDown = ROLL DOWN (−1). Implementations that do not add them are also conformant. As long as these two keys are not pressed, behavior is the same as OpenDante98.
+**Answer**: They may be added (an optional extension). The reference implementation cannot input these two keys either, so values cannot be changed there. Add two booleans, ROLL UP and ROLL DOWN, to the input state; when filling the key buffer, append them after the six keys in the order ROLL UP → ROLL DOWN, and handle them by the same rules (add a keystroke at the moment of pressing, repeat, repeat release). The keystroke codes are 0x36 / 0x37. Recommended mapping: PageUp = ROLL UP (+1), PageDown = ROLL DOWN (−1). Implementations that do not add them are also conformant. As long as these two keys are not pressed, behavior is the same as the reference implementation.
 **Spec change**: Added 「任意の拡張：ROLL UP / ROLL DOWN」 ("Optional extension: ROLL UP / ROLL DOWN") to chapter 01 §4.3. Added to chapter 23 §10.3 a reference to chapter 01 and the key-check order (cancel → ROLL UP → ROLL DOWN → direction). Also documented that the cursor does not move when the value does not change at the upper or lower limit, that the cell is redrawn for any key, and that the key wait neither flushes the buffer nor performs the STOP check.
 **Clean-room provisional implementation**: Change required (optional). Add PageUp/PageDown to the input abstraction and put 0x36/0x37 into the key buffer per the rules above.
 
 ### D2M-Q3. "Empty" entries in the warp destination list
-**Answer**: The provisional reading is correct. Starting from the top of the list, the warp points' map numbers are placed in as many entries as the registered count, and entries after that are empty regardless of the contents of the state block. An entry before the registered count is also treated as empty if its map number is 0xFFFF (not displayed, cannot be confirmed, and counted as empty in the "more entries" check). A registered count above 30 (data corruption) is an out-of-range access and undefined in OpenDante98, so treating it as 30 is recommended.
+**Answer**: The provisional reading is correct. Starting from the top of the list, the warp points' map numbers are placed in as many entries as the registered count, and entries after that are empty regardless of the contents of the state block. An entry before the registered count is also treated as empty if its map number is 0xFFFF (not displayed, cannot be confirmed, and counted as empty in the "more entries" check). A registered count above 30 (data corruption) is an out-of-range access and undefined in the reference implementation, so treating it as 30 is recommended.
 **Spec change**: Added the warp destinations to 「内容の並び」 ("content ordering") in chapter 23 §2.3.
 **Clean-room provisional implementation**: Confirmed (clamping a registered count above 30 to 30 is advisable).
 
@@ -395,7 +395,7 @@ Scope: D2M-Q1 to Q7 and D2B-Q1 to Q9 in spec-questions.md. Chapters modified: 23
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2B-Q4. Drawing when the transformed form's size class and the EGD size disagree
-**Answer**: OpenDante98 behaves as follows (the original is 【未確認】 (unconfirmed)).
+**Answer**: The reference implementation behaves as follows (the original is 【未確認】 (unconfirmed)).
 - The EGD is always loaded with the EGD's own size (0x30). Each of the 5 planes is sliced as "EGD width/8 × EGD height" bytes.
 - Normal display, white (flash), and step-forward drawing use the dimensions of the combatant's size class (small: 10 bytes × 96 rows; large: 20 bytes × 128 rows). The sliced byte sequence is read as rows, one row per class row-width in bytes. Positions beyond the plane's length are 0 (transparent).
 - Erasing uses the rectangle of the combatant's class.
@@ -407,7 +407,7 @@ None of the 21 samples has an enemy (including transformed forms) whose class di
 **Clean-room provisional implementation**: Change required (low priority). Change normal and white drawing from "the EGD's own dimensions" to "the combatant's class dimensions, reading the plane byte sequence at the class row width (missing parts are 0)". The erase area and the post-step-forward fill can stay as they are.
 
 ### D2B-Q5. Negative spell damage
-**Answer**: As written, negative values are applied as-is (OpenDante98's behavior. The original also uses signed arithmetic, and no code that rejects negative values has been found; this is annotated as 【未確認】 (unconfirmed)). The variance function's result can be negative only when the variance value p is 25 or more (it is never negative for p ≤ 24). None of the 21 samples has a spell with p ≥ 25. The consequences are:
+**Answer**: As written, negative values are applied as-is (the reference implementation's behavior. The original also uses signed arithmetic, and no code that rejects negative values has been found; this is annotated as 【未確認】 (unconfirmed)). The variance function's result can be negative only when the variance value p is 25 or more (it is never negative for p ≤ 24). None of the 21 samples has a spell with p ≥ 25. The consequences are:
 - HP damage: a negative number is displayed (e.g., 「-5 のダメージ！」, "-5 damage!"), with the usual sound effect and effects. HP increases, with no cap even if it exceeds max HP. The sleep wake-up check (1 random draw) is also performed.
 - Drain: the caster's HP decreases (no lower bound; the caster does not faint even at 0 or below).
 - MP damage: the target's MP increases. With drain, the caster's MP decreases.
@@ -432,7 +432,7 @@ None of the 21 samples has an enemy (including transformed forms) whose class di
 **Clean-room provisional implementation**: Confirmed.
 
 ### D2B-Q9. When a party record number exceeds 11
-**Answer**: Undefined in OpenDante98 as well (it references a party record out of range; the original also reads out-of-range memory). The provisional "treat that slot as empty but count it in the member count" is confirmed as the recommendation. Handle the empty slot as follows:
+**Answer**: Undefined in the reference implementation as well (it references a party record out of range; the original also reads out-of-range memory). The provisional "treat that slot as empty but count it in the member count" is confirmed as the recommendation. Handle the empty slot as follows:
 - Do not initialize it as a combatant.
 - Count it as fainted in the wipe-out check.
 - Do not include it in the turn order or as a target.

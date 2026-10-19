@@ -6,8 +6,8 @@
 with the bundled ymfm (OPN_FIDELITY_MIN, prescaler 1/6 selected by a write to address 0x2D) the SSG engine runs at φM/16 = 249,600 Hz,
 so period 477 is ≈ 262 Hz and O4 A (period 283) is 441 Hz (the same octave as FM O4 A = 440 Hz).
 The spectral peaks match the reference audio exactly (SOUND.DAT @15 in reference_audio/come.wav and agasa.wav, @12 in kokoro.wav),
-so we concluded that OpenDante98's actual output is also this (≈262 Hz) and use ymfm's behavior as is.
-We would like to confirm whether the "≈131 Hz" in §3.10.4 is a calculation error in the text, or whether OpenDante98 uses a different setting.
+so we concluded that the reference implementation's actual output is also this (≈262 Hz) and use ymfm's behavior as is.
+We would like to confirm whether the "≈131 Hz" in §3.10.4 is a calculation error in the text, or whether the reference implementation uses a different setting.
 
 ## Q2. Power-on initial value of the vibrato direction (§3.2) (resolved by v1.1)
 **Resolved by v1.1**: The power-on direction is "up" (added to §3.2 and §3.12). The provisional implementation was confirmed and the PROVISIONAL marker removed.
@@ -36,7 +36,7 @@ No sample uses such a value.
   until the sound effect rewrites them at the next audio-side VSYNC (1–4 chip samples later). The only differences from the reference audio are
   spikes in the first 1–2 output samples of frames 211, 213 and 215 (maximum difference 2502) and a ±1 tail from the DC cut (up to frame 221); 99.5% of the whole matches.
 - Experiment: making the fade **write no registers at all** gave a 100% sample match with the reference audio for both come and agasa.
-  So OpenDante98 apparently does not write the SSG volume registers in this situation (or the writes do not show up in the output).
+  So the reference implementation apparently does not write the SSG volume registers in this situation (or the writes do not show up in the output).
   However, this data cannot distinguish which of the following rules applies:
   (a) Channels for which no song has ever been played (or that have never been initialized) are not written (like the FM rule "do not write if no voice has been loaded")
   (b) Nothing is written while stopped (playing flag off)

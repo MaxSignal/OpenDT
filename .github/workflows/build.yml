@@ -82,19 +82,39 @@ jobs:
 
   release:
     name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Every run except pull requests publishes a release:
+    #  - a v* tag creates a regular release for that tag;
+    #  - any other run replaces the rolling "latest" pre-release with this build.
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Create GitHub release
+
+      - name: Create release for tag
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la dist
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "OpenDT $GITHUB_REF_NAME" --generate-notes
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "OpenDT $GITHUB_REF_NAME" --generate-notes
+
+      - name: Update the "latest" pre-release
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create latest dist/* --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+            --title "OpenDT latest build (${GITHUB_SHA::7})" \
+            --notes "Automatic build of commit ${GITHUB_SHA} (${GITHUB_REF_NAME}). This pre-release is replaced by every new build; see the versioned releases for stable downloads."

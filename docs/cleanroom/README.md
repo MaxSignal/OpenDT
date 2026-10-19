@@ -11,7 +11,10 @@ the [README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md) and
 1. **Specification team.** A separate team studied the original software and wrote a natural-language
    specification (in Japanese) describing *what* the player must do: data formats, screen layout, timing,
    formulas, the order of random-number draws and so on. It contains no code. The specification itself is not
-   part of this repository.
+   part of this repository. The team worked from an internal, non-public reference implementation built from
+   analysis of the original programs; these records call it "the reference implementation". The reference
+   screenshots and audio supplied with the specification were produced with it. The implementation team never
+   had access to it.
 2. **Implementation team.** OpenDT was implemented using only:
    - the specification (v1.0, later v1.1),
    - the data files of sample games (images, maps, databases, MML music, SOUND.DAT),

@@ -18,16 +18,22 @@ sound driver (MUSIC.COM).
 
 ## Downloads
 
-Prebuilt binaries for Windows (x64), macOS (universal: Apple silicon and Intel) and Linux (x86_64) are attached to
-each [release](https://github.com/MaxSignal/OpenDT/releases), and builds of the latest commit are available as
-artifacts of the [Build workflow](https://github.com/MaxSignal/OpenDT/actions/workflows/build.yml).
+Prebuilt binaries for Windows (x64), macOS (universal: Apple silicon and Intel) and Linux (x86_64) are on the
+[releases page](https://github.com/MaxSignal/OpenDT/releases):
+
+- Versioned releases (`v0.1.0`, …) are the stable downloads.
+- The **latest** pre-release is rebuilt automatically from every commit to `main`.
+
+Notes:
 
 - **Windows / macOS:** self-contained; SDL2 is linked statically.
 - **Linux:** needs the SDL2 runtime library (e.g. `sudo apt install libsdl2-2.0-0`).
 - **macOS:** the binaries are not signed. If macOS refuses to open `opendt`, remove the quarantine attribute
   (`xattr -d com.apple.quarantine opendt`) or allow it under System Settings → Privacy & Security.
-- `opendt` is a command-line program: start it from a terminal with a game folder (see [Running](#running)), or
-  place it in a folder that contains your games and start it from there.
+- The easiest way to start is to put `opendt` in the folder that contains your games and double-click it: when it
+  is started without a folder argument from the home folder (as the macOS Finder does) or from a filesystem
+  root, it looks in the folder where `opendt` itself is. From a terminal, pass a game folder or a folder of games
+  (see [Running](#running)).
 
 ## Getting started
 
@@ -72,7 +78,8 @@ build/opendt [GAME_OR_FOLDER] [--no-title] [--scale N] [--fullscreen] [--mute] [
 
 - If `GAME_OR_FOLDER` is a game folder (the folder containing RPG.EXE), the game starts directly.
 - If it is any other folder, OpenDT searches it for games and shows a game selection screen.
-- If omitted, the current directory is used.
+- If omitted, the current directory is used, unless it is the home folder or a filesystem root; then the folder
+  containing `opendt` is used.
 
 | Option | Meaning |
 |---|---|
