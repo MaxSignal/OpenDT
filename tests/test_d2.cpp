@@ -10,7 +10,7 @@
 #include "test.h"
 
 namespace {
-const std::string kSamples = "/home/claude/samples/games/";
+const std::string kSamples = (t::samples() + "games/");
 
 bool have(const std::string& p) { return core::isDirectory(p); }
 
@@ -222,7 +222,7 @@ TEST(d2_save_roundtrip_05yakata) {
   auto s1 = g->buildSave();
   CHECK_EQ(s1.size(), size_t(d2::kSaveSize));
   // our save, then load it into a fresh game and save again: byte identical
-  const std::string tmp = "/tmp/claude-0/d2_save_test";
+  const std::string tmp = (t::tmp() + "d2_save_test");
   {
     std::string cmd = "rm -rf " + tmp + " && mkdir -p " + tmp + " && cp -r '" + root + "'/. " + tmp + "/";
     CHECK(std::system(cmd.c_str()) == 0);
@@ -897,7 +897,7 @@ TEST(d2_save_version_mismatch) {
   if (!have(root)) return;
   RecHost host;
   core::StartOptions opt;
-  const std::string tmp = "/tmp/claude-0/d2_save_ver_test";
+  const std::string tmp = (t::tmp() + "d2_save_ver_test");
   CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + " && cp -r '" + root + "'/. " + tmp + "/").c_str()) ==
         0);
   std::vector<uint8_t> save;
@@ -947,7 +947,7 @@ TEST(d2_default_map_and_short_picture) {
   CHECK_EQ(m->hdr.chr[2], 77);
   CHECK(std::string(m->hdr.battleBgm) == "BATTLE");
   CHECK_EQ(m->zones[0], 0xFF);
-  const std::string tmp = "/tmp/claude-0/d2_short_pct";
+  const std::string tmp = (t::tmp() + "d2_short_pct");
   CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + "/EBD_PCT").c_str()) == 0);
   CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT001.EBD", std::vector<uint8_t>(128047, 0x11)));
   CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT002.EBD", std::vector<uint8_t>(128048, 0x11)));
@@ -962,7 +962,7 @@ TEST(d2_default_map_and_short_picture) {
 // Spec v1.1 changes (D2F-Q4, Q6, Q11, Q12, 01 §4.3 ROLL keys)
 namespace {
 std::string tmpGameDir(const char* name) {
-  const std::string dir = std::string("/tmp/claude-0/d2_v11_") + name;
+  const std::string dir = std::string((t::tmp() + "d2_v11_")) + name;
   std::string cmd = "rm -rf " + dir + " && mkdir -p " + dir + "/DAT_MAP " + dir + "/EBD_BKG";
   if (std::system(cmd.c_str()) != 0) return std::string();
   return dir;

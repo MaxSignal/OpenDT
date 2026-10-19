@@ -13,8 +13,8 @@ using namespace d2;
 using namespace d2::bt;
 
 namespace {
-const std::string kRing = "/home/claude/samples/games/ring/ring";
-const std::string kDino = "/home/claude/samples/games/dino/dino";
+const std::string kRing = (t::samples() + "games/ring/ring");
+const std::string kDino = (t::samples() + "games/dino/dino");
 
 // Number of draws an operation consumed, measured by replaying the generator.
 int drawsBetween(uint32_t before, uint32_t after) {

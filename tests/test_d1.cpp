@@ -24,7 +24,7 @@ const char* kD1Games[] = {
     "games/lost/LostSheep", "games/nuigl/nuigl", "games/social/social", "d1/cook/COOK", "d1/earth/EARTH",
     "d1/haru/春の嵐", "d1/kaze/風薫るとき", "d1/maho/MAHO", "d1/night/NIGHT", "d1/olsay/OLSAY", "d1/wicca/WICCA"};
 
-std::string sample(const char* rel) { return std::string("/home/claude/samples/") + rel; }
+std::string sample(const char* rel) { return t::samples() + rel; }
 
 }  // namespace
 

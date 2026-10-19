@@ -36,7 +36,7 @@ class Session:
         args += ['-c', 'mount c "%s"' % self.gamedir, '-c', 'c:']
         for c in self.commands:
             args += ['-c', c]
-        self.log = open('/tmp/claude-0/dosbox_%s.log' % self.display[1:], 'w')
+        self.log = open(os.path.join(os.environ.get('TMPDIR', '/tmp'), 'h98_dosbox_%s.log') % self.display[1:], 'w')
         self.proc = subprocess.Popen(args, env=env, stdout=self.log, stderr=subprocess.STDOUT)
         time.sleep(2.0)
         self.win = None

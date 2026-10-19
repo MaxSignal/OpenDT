@@ -9,7 +9,7 @@
 
 namespace app {
 
-constexpr const char* kAppName = "Dante98CR";
+constexpr const char* kAppName = "OpenDT";
 
 core::EngineKind detectGame(const std::string& dir);   // §7.1 (directory listing check)
 core::EngineKind engineForRun(const std::string& dir); // D2 if DAT_RPG/PLAYER.DAT && DAT_MAP dir, else D1

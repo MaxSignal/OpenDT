@@ -152,10 +152,10 @@ class HeadlessHost : public core::Host {
 
 void usage() {
   std::fprintf(stderr,
-               "usage: dante98cr-headless GAMEDIR [-s script] [-k \"script\"] [-o outdir] [-w out.wav] [-n frames]\n"
+               "usage: opendt-headless GAMEDIR [-s script] [-k \"script\"] [-o outdir] [-w out.wav] [-n frames]\n"
                "       [--no-title] [--no-quit] [-v] [--warp M,X,Y] [--battle G] [--gold N] [--item ID]... "
                "[--seed N]\n"
-               "       dante98cr-headless --games DIR [-o outdir]\n");
+               "       opendt-headless --games DIR [-o outdir]\n");
 }
 
 }  // namespace

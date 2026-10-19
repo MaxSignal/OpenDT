@@ -280,7 +280,7 @@ TEST(music_soft_envelope) {
 
 static std::vector<uint8_t> agasaSound() {
   std::vector<uint8_t> d;
-  core::tryReadFile("/home/claude/samples/games/agasa/agasa", "SOUND.DAT", d);
+  core::tryReadFile((t::samples() + "games/agasa/agasa"), "SOUND.DAT", d);
   return d;
 }
 
@@ -377,8 +377,8 @@ TEST(music_d_part_mapping) {
 
 TEST(music_player_requests) {
   // agasa (D1, Ver 2.00): BGM number with missing file keeps the current song.
-  music::MusicPlayer p("/home/claude/samples/games/agasa/agasa", 44100);
-  if (!core::fileExists("/home/claude/samples/games/agasa/agasa", "BGM/BGM01.MML")) return;
+  music::MusicPlayer p((t::samples() + "games/agasa/agasa"), 44100);
+  if (!core::fileExists((t::samples() + "games/agasa/agasa"), "BGM/BGM01.MML")) return;
   CHECK(!p.version221());
   std::vector<int16_t> buf(2048);
   core::SoundRequest r;
@@ -398,7 +398,7 @@ TEST(music_player_requests) {
   p.generate(buf.data(), 1024);
   CHECK(!p.bgmPlaying());
   // kokoro (D2) is Ver 2.21
-  music::MusicPlayer k("/home/claude/samples/games/kokoro/kokoro", 44100);
+  music::MusicPlayer k((t::samples() + "games/kokoro/kokoro"), 44100);
   CHECK(k.version221());
 }
 
@@ -608,7 +608,7 @@ static void collectMml(const std::string& dir, std::vector<std::string>& out) {
 TEST(music_compile_all_samples) {
   // Acceptance 14: every sample *.MML compiles without errors.
   std::vector<std::string> files;
-  collectMml("/home/claude/samples", files);
+  collectMml(t::samples(), files);
   if (files.empty()) {
     std::printf("  (samples missing, skipped)\n");
     return;
@@ -673,7 +673,7 @@ TEST(music_v11_18_fade_before_first_play) {
 
 TEST(music_v11_19_ssg_pitch) {
   // Render SSG period 477 (O4 C) and 283 (O4 A) through the real player and measure zero crossings.
-  const char* dir = "/tmp/claude-0/music_pitch_test";
+  const std::string dir = t::tmp() + "music_pitch_test";
   std::string bgm = std::string(dir) + "/BGM";
   std::string cmd = std::string("mkdir -p ") + bgm;
   if (std::system(cmd.c_str()) != 0) return;

@@ -16,7 +16,7 @@
 #include "test.h"
 
 namespace {
-const std::string kSamples = "/home/claude/samples/games/";
+const std::string kSamples = (t::samples() + "games/");
 bool have(const std::string& p) { return core::isDirectory(p); }
 
 struct ScriptEnd {};
@@ -90,7 +90,7 @@ std::unique_ptr<d2::Game> startGame(ScriptHost& h, const std::string& root, bool
 
 // Symlink farm of a game root so tests can write SAVEn.DAT without touching the sample.
 std::string farm(const std::string& root, const std::string& name) {
-  const std::string tmp = "/tmp/claude-0/d2menu_" + name;
+  const std::string tmp = (t::tmp() + "d2menu_") + name;
   std::string cmd = "rm -rf '" + tmp + "' && mkdir -p '" + tmp + "'";
   if (std::system(cmd.c_str()) != 0) return "";
   for (auto& n : core::listDir(root)) {

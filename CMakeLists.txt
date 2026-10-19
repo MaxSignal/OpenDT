@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Dante98CR CXX)
+project(OpenDT CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -40,13 +40,13 @@ target_link_libraries(d2 PUBLIC core)
 add_library(applib STATIC src/app/games.cpp)
 target_link_libraries(applib PUBLIC core d1 d2 music)
 
-add_executable(dante98cr-headless src/app/headless.cpp)
-target_link_libraries(dante98cr-headless applib)
+add_executable(opendt-headless src/app/headless.cpp)
+target_link_libraries(opendt-headless applib)
 
 if(SDL2_FOUND)
-  add_executable(dante98cr src/app/sdl_main.cpp)
-  target_include_directories(dante98cr PRIVATE ${SDL2_INCLUDE_DIRS})
-  target_link_libraries(dante98cr applib ${SDL2_LIBRARIES} Threads::Threads)
+  add_executable(opendt src/app/sdl_main.cpp)
+  target_include_directories(opendt PRIVATE ${SDL2_INCLUDE_DIRS})
+  target_link_libraries(opendt applib ${SDL2_LIBRARIES} Threads::Threads)
 endif()
 
 # Unit tests

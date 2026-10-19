@@ -1,4 +1,4 @@
-# Dante98CR 開発ルール
+# OpenDT 開発ルール
 
 クリーンルーム方式の Dante98 / Dante98 II プレイヤー再実装。
 
@@ -35,5 +35,5 @@ cmake -S . -B build-<module> && cmake --build build-<module> -j2 --target <targe
 ## ヘッドレス実行器
 
 ```
-build/dante98cr-headless GAMEDIR -k "60 shot:01_title 30 z 30 z 150 shot:02_start" -o OUTDIR [-w out.wav] [-v]
+build/opendt-headless GAMEDIR -k "60 shot:01_title 30 z 30 z 150 shot:02_start" -o OUTDIR [-w out.wav] [-v]
 ```

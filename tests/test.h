@@ -46,3 +46,22 @@ struct Reg {
       ++t::failures();                                                                                \
     }                                                                                                 \
   } while (0)
+
+#include <cstdlib>
+namespace t {
+// Root of the sample games (env OPENDT_SAMPLES, default "samples" relative to the working directory).
+// Layout: <root>/games/<archive>/... and <root>/d1/<name>/...
+inline std::string samples() {
+  const char* e = std::getenv("OPENDT_SAMPLES");
+  std::string s = (e && *e) ? e : "samples";
+  if (s.back() != '/') s += '/';
+  return s;
+}
+// Scratch directory for tests (env OPENDT_TMP, default /tmp).
+inline std::string tmp() {
+  const char* e = std::getenv("OPENDT_TMP");
+  std::string s = (e && *e) ? e : "/tmp";
+  if (s.back() != '/') s += '/';
+  return s;
+}
+}  // namespace t

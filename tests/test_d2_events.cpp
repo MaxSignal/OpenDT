@@ -9,7 +9,7 @@
 
 namespace {
 
-const char* kRoot = "/home/claude/samples/games/dino/dino";
+const std::string kRoot = t::samples() + "games/dino/dino";
 
 struct EvHost : core::Host {
   long frame = 0;

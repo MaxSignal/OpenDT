@@ -1,12 +1,21 @@
 #!/bin/bash
 # Runs the reference script on every sample game (D1 and D2) and compares against reference_shots.
 # Prints one line per game: name engine matched/total, plus any differing shots.
-BIN=${BIN:-/home/claude/dante/build/dante98cr-headless}
-OUT=${OUT:-/tmp/claude-0/allref}
-REF=${REF:-/home/claude/work/spec11/dante98_cleanroom_spec/reference_shots}
+# Environment:
+#   OPENDT_SAMPLES  root of the sample games (default: ./samples)
+#   OPENDT_REF      reference_shots directory from the clean-room spec (required)
+#   BIN             headless binary (default: build/opendt-headless in the repository)
+#   OUT             output directory (default: /tmp/opendt_refs)
+HERE=$(cd "$(dirname "$0")" && pwd)
+BIN=${BIN:-$HERE/../build/opendt-headless}
+OUT=${OUT:-/tmp/opendt_refs}
+SAMPLES=${OPENDT_SAMPLES:-samples}
+SAMPLES=${SAMPLES%/}
+REF=${OPENDT_REF:?set OPENDT_REF to the reference_shots directory}
 SCRIPT="60 shot:01_title 30 z 30 z 150 shot:02_start z 70 z 70 shot:03_after_ok x 60 shot:04_menu x 60 r*40 l*40 shot:05_walk"
-$BIN --games /home/claude/samples -o /tmp/claude-0 2>/dev/null | while IFS=$'\t' read kind root; do
-  rel=${root#/home/claude/samples/}
+mkdir -p "$OUT"
+$BIN --games "$SAMPLES" -o "$OUT" 2>/dev/null | while IFS=$'\t' read kind root; do
+  rel=${root#$SAMPLES/}
   name=$(echo "$rel" | cut -d/ -f2)
   mkdir -p "$OUT/$name"
   timeout 120 $BIN "$root" -k "$SCRIPT" -n 1500 -o "$OUT/$name" > /dev/null 2> "$OUT/$name/log.txt"

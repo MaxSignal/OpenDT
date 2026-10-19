@@ -60,7 +60,7 @@ struct Video {
   }
   void screenshot() {
     char name[64];
-    std::snprintf(name, sizeof(name), "dante98cr_%03d.png", shotNo++);
+    std::snprintf(name, sizeof(name), "opendt_%03d.png", shotNo++);
     core::writePng(name, last.data(), 640, 400);
   }
 };
@@ -233,7 +233,7 @@ SessionResult runSession(Video& v, const std::string& root, const core::StartOpt
 }
 
 void usage() {
-  std::fprintf(stderr, "usage: dante98cr [GAMEDIR | FOLDER] [--no-title] [--scale N] [--fullscreen] [--mute] [-v]\n");
+  std::fprintf(stderr, "usage: opendt [GAMEDIR | FOLDER] [--no-title] [--scale N] [--fullscreen] [--mute] [-v]\n");
 }
 
 std::string exeDir(const char* argv0) {
