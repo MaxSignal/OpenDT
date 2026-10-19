@@ -54,7 +54,8 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="${GITHUB_SHA::7}"; fi
+          PROJECT_VERSION=$(sed -n 's/^project(OpenDT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="v${PROJECT_VERSION}-${GITHUB_SHA::7}"; fi
           NAME="opendt-${VERSION}-${{ matrix.package }}"
           cmake --install build --config Release --prefix "stage/${NAME}"
           mv "stage/${NAME}/bin/"* "stage/${NAME}/"
@@ -82,9 +83,11 @@ jobs:
 
   release:
     name: Release
-    # Every run except pull requests publishes a release:
-    #  - a v* tag creates a regular release for that tag;
-    #  - any other run replaces the rolling "latest" pre-release with this build.
+    # Every run except pull requests publishes releases:
+    #  - push of a v* tag: a release for that tag;
+    #  - push to main: if the version in CMakeLists.txt (project(OpenDT VERSION x.y.z)) has no release yet,
+    #    a release vX.Y.Z is created for this commit. To cut a release, bump that version.
+    #  - every non-tag run also replaces the rolling "latest" pre-release with this build.
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
@@ -94,6 +97,8 @@ jobs:
       group: release-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -108,6 +113,20 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
             --title "OpenDT $GITHUB_REF_NAME" --generate-notes
 
+      - name: Create versioned release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^project(OpenDT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ -z "$VERSION" ]; then echo "no version in CMakeLists.txt"; exit 1; fi
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists; bump the version in CMakeLists.txt to publish a new one."
+          else
+            gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "OpenDT v$VERSION" --generate-notes
+          fi
+
       - name: Update the "latest" pre-release
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         env:
@@ -115,6 +134,6 @@ jobs:
         run: |
           ls -la dist
           gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
-          gh release create latest dist/* --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
-            --title "OpenDT latest build (${GITHUB_SHA::7})" \
+          gh release create latest dist/* --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
+            --target "$GITHUB_SHA" --title "OpenDT latest build (${GITHUB_SHA::7})" \
             --notes "Automatic build of commit ${GITHUB_SHA} (${GITHUB_REF_NAME}). This pre-release is replaced by every new build; see the versioned releases for stable downloads."

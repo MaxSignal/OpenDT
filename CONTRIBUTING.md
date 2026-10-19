@@ -63,6 +63,16 @@ OpenDT is a clean-room implementation. To keep it that way, contributors must fo
 
 If you are unsure whether a source of information is acceptable, ask before using it.
 
+## Continuous integration and releases
+
+`.github/workflows/build.yml` builds and tests every push and pull request on Linux, Windows and macOS and
+publishes releases:
+
+- Every push to `main` replaces the **latest** pre-release with the new build.
+- To publish a versioned release, bump `project(OpenDT VERSION x.y.z)` in `CMakeLists.txt` and push to `main`:
+  when no release `vX.Y.Z` exists yet, the workflow creates it (and its tag) for that commit.
+- Pushing a `v*` tag also creates a release for that tag.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the MIT License (see `LICENSE`).
