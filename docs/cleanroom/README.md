@@ -10,8 +10,8 @@ the [README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md) and
 
 1. **Specification team.** A separate team studied the original software and wrote a natural-language
    specification (in Japanese) describing *what* the player must do: data formats, screen layout, timing,
-   formulas, the order of random-number draws and so on. It contains no code. The specification itself is not
-   part of this repository. The team worked from an internal, non-public reference implementation built from
+   formulas, the order of random-number draws and so on. It contains no code. The specification (v1.1) is included in
+   [spec/](spec/README.md) in the original Japanese. The team worked from an internal, non-public reference implementation built from
    analysis of the original programs; these records call it "the reference implementation". The reference
    screenshots and audio supplied with the specification were produced with it. The implementation team never
    had access to it.
@@ -40,6 +40,7 @@ the [README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md) and
 |---|---|
 | [process-rules.md](process-rules.md) | Rules the implementers worked under (allowed sources, prohibitions, how to record questions) |
 | [emulator-observation.md](emulator-observation.md) | How the original games were observed in DOSBox-X, with known limitations |
+| [spec/](spec/README.md) | The clean-room specification v1.1 (Japanese original), including the specification team's answers |
 | [spec-questions.md](spec-questions.md) | All 50 questions sent to the specification team, with the priority list |
 | [spec-answers-v1.1.md](spec-answers-v1.1.md) | The specification team's answers, which accompanied spec v1.1 |
 | [questions/](questions/) | The per-module question logs (music, D1, D2 data/field, D2 events, D2 menus, D2 battle) with resolutions |

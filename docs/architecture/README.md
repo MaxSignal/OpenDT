@@ -70,5 +70,5 @@ The code comments refer to the clean-room specification by chapter and section (
 | 10, 11, 12, 19 | D1 data formats, engine, battle, system messages | `src/d1` |
 | 20–24 | D2 data formats, flow/field, events, menus, battle | `src/d2` |
 
-The specification itself is not part of this repository; see [docs/cleanroom/](../cleanroom/README.md) for how
-it was used.
+The specification (Japanese) is in [docs/cleanroom/spec/](../cleanroom/spec/README.md); see
+[docs/cleanroom/](../cleanroom/README.md) for how it was used.

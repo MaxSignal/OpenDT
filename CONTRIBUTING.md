@@ -53,7 +53,7 @@ OpenDT is a clean-room implementation. To keep it that way, contributors must fo
    binaries of RPG.EXE, MUSIC.COM or other original executables. The only exceptions are the byte reads for
    version detection and the version-string search that the specification explicitly allows.
 3. **Base changes on the specification and observation.** Every behavior must be justified by the clean-room
-   specification, the game data files, or black-box observation of the original running in an emulator
+   specification ([docs/cleanroom/spec/](docs/cleanroom/spec/README.md)), the game data files, or black-box observation of the original running in an emulator
    (running it and watching the screen and sound is fine; memory-dump analysis and stepping through code in a
    debugger are not). Mention the relevant spec section (e.g. "spec 22 §5.4") in code or commit messages where
    helpful.

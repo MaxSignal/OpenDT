@@ -147,8 +147,8 @@ OpenDT was written only from a natural-language specification of the original so
 team, together with the data files of sample games and black-box observation of the original running in an
 emulator. The original executables were not disassembled (beyond the byte reads for version detection that the
 specification allows), and no code or information from other implementations was used. The historical records
-of this process (development rules, observation notes, questions to the specification) are kept in
-[docs/cleanroom/](docs/cleanroom/README.md).
+of this process, including the specification itself (in Japanese), the development rules, observation notes and
+the questions to the specification team, are kept in [docs/cleanroom/](docs/cleanroom/README.md).
 
 ## Contributing
 
