@@ -539,7 +539,8 @@ TEST(d1_wait_press_fast_checked_once) {
   CHECK_EQ(h.frames, 1L);
 }
 
-// Spec 11 §9.5.1 step 2 (v1.1, D1-Q8): the wait after 「魔法は使えません」 ignores the fast key.
+// Spec 11 §9.5.1 step 2 (v1.1, D1-Q8): the wait after 「魔法は使えません」
+// ("magic cannot be used") ignores the fast key.
 TEST(d1_no_magic_wait_ignores_fast) {
   ScriptHost h;
   core::StartOptions opt;
@@ -593,7 +594,7 @@ TEST(d1_battle_empty_slot_target) {
   d1::Hero before[8];
   for (int i = 0; i < 8; ++i) before[i] = g.heroes[i];
   const int kItem = -2;
-  CHECK_EQ(g.testBattleEffect(11, kItem, 1), 9);  // confusion of status 0 -> "混乱してしまった"
+  CHECK_EQ(g.testBattleEffect(11, kItem, 1), 9);  // confusion of status 0 -> "混乱してしまった" (confused)
   CHECK_EQ(g.testBattleEffect(6, kItem, 1), 0);   // revive fails
   CHECK_EQ(g.testBattleEffect(7, kItem, 1), 0);   // cure fails (status reads 0)
   CHECK_EQ(g.testBattleEffect(8, kItem, 1), 1);

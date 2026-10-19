@@ -24,8 +24,8 @@ enum Action : int {
   kPoisonAtk = 6,
   kItem = 100,
   kNothing = 101,
-  kDead = 102,   // "死亡中" (fainted at turn start, used by the revive check)
-  kFlee = 103,   // party "逃げる" (slot 0 only)
+  kDead = 102,   // "死亡中" (dead: fainted at turn start, used by the revive check)
+  kFlee = 103,   // party "逃げる" (Flee) (slot 0 only)
 };
 
 enum DmgMode { kPhysical, kMagical, kAbsorb };

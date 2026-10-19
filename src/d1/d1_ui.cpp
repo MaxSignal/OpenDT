@@ -34,7 +34,7 @@ void Game::waitRelease() {
   while (anyKey(in())) frame();
 }
 
-// "キー押し待ち" (spec 11 §1.3): the fast key is checked once, when the wait starts.
+// "キー押し待ち" (wait for key press; spec 11 §1.3): the fast key is checked once, when the wait starts.
 void Game::waitPress() {
   if (in().fast) {
     frame();

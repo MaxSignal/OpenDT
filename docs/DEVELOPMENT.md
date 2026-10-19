@@ -1,38 +1,41 @@
-# OpenDT 開発ルール
+# OpenDT development rules
 
-クリーンルーム方式の Dante98 / Dante98 II プレイヤー再実装。
+A clean-room reimplementation of a player for Dante98 / Dante98 II games.
 
-## クリーンルーム規則（厳守）
+## Clean-room rules (mandatory)
 
-1. 使ってよい情報: `/home/claude/work/spec11/dante98_cleanroom_spec/` の仕様書一式（v1.1。v1.0 は `/home/claude/work/spec/`）、サンプルゲームのデータファイル
-   （`/home/claude/samples/`）、DOSBox 等のエミュレータで原本を動かして観察した結果、汎用ライブラリ（ymfm、東雲フォント）。
-2. 禁止: RPG.EXE・MUSIC.COM などの実行ファイルの逆アセンブル・逆コンパイル・バイナリ解析（仕様が許可する
-   版判別のためのバイト読み取りと版文字列検索のみ可）。インターネット上の Dante98 / MUSIC.COM / OpenDante98 に
-   関する情報の検索・取得（WebSearch/WebFetch/curl を使わない）。
-3. 仕様が曖昧・矛盾するときは推測で埋めず `docs/questions_<module>.md` に「仕様への質問」として記録する。
-   応急の実装を入れる場合は、コードに `// PROVISIONAL(Qn):` と書き、質問番号を対応させる。
+1. Permitted sources of information: the clean-room specification (v1.1; v1.0 is kept for reference), the data
+   files of the sample games (`$OPENDT_SAMPLES`), observations of the original running in an emulator such as
+   DOSBox, and general-purpose libraries (ymfm, Shinonome font).
+2. Forbidden: disassembling, decompiling or otherwise analyzing the binaries of executables such as RPG.EXE and
+   MUSIC.COM (only reading bytes for version detection and searching for version strings, as permitted by the
+   specification, is allowed). Searching for or retrieving information on the Internet about Dante98, MUSIC.COM
+   or OpenDante98 (do not use WebSearch/WebFetch/curl).
+3. When the specification is ambiguous or contradictory, do not fill the gap by guesswork; record it as a
+   "question to the spec" in `docs/questions_<module>.md`. If you add a stopgap implementation, mark it in the
+   code with `// PROVISIONAL(Qn):` using the matching question number.
 
-## 構成
+## Layout
 
-| ディレクトリ | 内容 | 仕様 |
+| Directory | Contents | Spec |
 |---|---|---|
-| src/core | 画面モデル、文字、乱数、ファイル、PNG/WAV、Host 境界 | 01 |
-| src/music | MUSIC.COM 互換ドライバ、ymfm 接続、MusicPlayer | 02, 01 §8 |
-| src/d1 | D1 エンジン | 10, 11, 12, 19 |
-| src/d2 | D2 エンジン | 20–24 |
-| src/app | ランチャー、SDL フロントエンド、ヘッドレス実行器 | 01 §7, §9 |
-| tests | ユニットテスト（`tests/test_<module>.cpp`） | 各章の受け入れテスト観点 |
+| src/core | Screen model, text, RNG, files, PNG/WAV, Host boundary | 01 |
+| src/music | MUSIC.COM-compatible driver, ymfm glue, MusicPlayer | 02, 01 §8 |
+| src/d1 | D1 engine | 10, 11, 12, 19 |
+| src/d2 | D2 engine | 20–24 |
+| src/app | Launcher, SDL frontend, headless runner | 01 §7, §9 |
+| tests | Unit tests (`tests/test_<module>.cpp`) | Acceptance-test points of each chapter |
 
-## ビルド
+## Building
 
 ```
 cmake -S . -B build-<module> && cmake --build build-<module> -j2 --target <targets>
 ```
 
-並行作業中は各担当が自分専用のビルドディレクトリ（`build-music`、`build-d1`、`build-d2`）を使う。
-`src/core` と `src/app` の変更は追加のみ・最小限にし、他モジュールのビルドを壊さないこと。
+During parallel work, each owner uses their own build directory (`build-music`, `build-d1`, `build-d2`).
+Changes to `src/core` and `src/app` must be additive and minimal, and must not break other modules' builds.
 
-## ヘッドレス実行器
+## Headless runner
 
 ```
 build/opendt-headless GAMEDIR -k "60 shot:01_title 30 z 30 z 150 shot:02_start" -o OUTDIR [-w out.wav] [-v]

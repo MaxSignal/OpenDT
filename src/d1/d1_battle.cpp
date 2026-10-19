@@ -11,7 +11,7 @@ namespace d1 {
 namespace {
 const int kTypeTab[32] = {1, 1, 1, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 4, 4, 4, 2, 2, 2, 4, 4, 4};
 bool isAllMagic(int m) { return m == 3 || m == 4 || m == 23 || m == 24 || m == 25 || m == 29 || m == 30 || m == 31; }
-const int kAbort = 0x7FFF0000;  // "中断コード"
+const int kAbort = 0x7FFF0000;  // "中断コード" (abort code)
 const int kNoCaster = -1, kItemCaster = -2;
 const int kFixed = 100;  // group kind: fixed damage (self-destruct)
 
@@ -380,7 +380,7 @@ int Battle::magicSelect(int s) {
     g.window(42, 10, 79, 15);
     g.drawStr(52, 12, S("魔法は使えません"));
     g.waitRelease();
-    g.waitAnyKey();  // not a キー押し待ち: ignores the fast key (spec 11 §9.5.1 / 12 §6.4, v1.1)
+    g.waitAnyKey();  // not a "キー押し待ち" (key wait): ignores the fast key (spec 11 §9.5.1 / 12 §6.4, v1.1)
     return -1;
   }
   g.window(24, 10, 79, 15);

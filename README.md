@@ -1,98 +1,147 @@
 # OpenDT
 
-PC-9801 用「RPGツクール Dante98」（D1, 1992）と「RPGツクール Dante98 II」（D2, 1996）で作られたゲームを
-現代の環境で遊ぶためのプレイヤーを、**クリーンルーム方式**で再実装したもの。原本の RPG.EXE（ゲーム実行部）と
-MUSIC.COM（FM 音源ドライバ）の挙動を高水準で再現する。エミュレータではなく、ゲームのデータファイルを
-直接読み込んで動かす。
+OpenDT is a player that runs PC-9801 games made with "RPGツクール Dante98" (RPG Tsukuru Dante98, "D1", 1992) and
+"RPGツクール Dante98 II" (RPG Tsukuru Dante98 II, "D2", 1996) on modern systems. It is not an emulator: it reads
+the game's data files directly and reimplements the behavior of the original game runtime (RPG.EXE) and FM
+sound driver (MUSIC.COM).
 
-## クリーンルームの方針
+## Features
 
-- 実装の根拠は、別の担当者が自然言語で書いた仕様書（`dante98_cleanroom_spec/`）と、サンプルゲームのデータ
-  ファイルだけ。
-- 原本の実行ファイルの逆アセンブル・逆コンパイルはしていない（仕様書が許可する版判別のためのバイト読み取り
-  と、MUSIC.COM の版文字列の検索のみ）。
-- インターネット上の Dante98 / MUSIC.COM / 既存再実装の情報は使っていない。
-- 原本を DOSBox-X（PC-98 モード）で**動かして外から観察する**ことだけは許可を得て行った
-  （`docs/ORIGINAL_OBSERVATION.md`）。
-- 仕様が曖昧な点は推測で埋めず `docs/questions_*.md` に「仕様への質問」として記録し、
-  仮の実装には `PROVISIONAL(Qn)` を付けた。
-- 外部部品: [ymfm](third_party/ymfm)（YM2203 エミュレータ、BSD-3-Clause）、東雲ビットマップフォント
-  （パブリックドメイン。`tools/gen_font.py` で字形表 `src/core/font_data.cpp` を生成）。
+- Both engines: games made with Dante98 (D1) and Dante98 II (D2).
+- Title screen, field, events, menus, shops, inns and battles.
+- Save/load compatible with the original save files.
+- MUSIC.COM-compatible FM/SSG music and sound effects via YM2203 emulation ([ymfm](third_party/ymfm)).
+- A built-in game browser: point it at a folder and pick a game.
+- Tested on Linux; any platform supported by SDL2 should work.
 
-## ビルド
+## Getting started
 
-必要なもの: C++17 コンパイラ、CMake 3.16 以上、zlib、SDL2（デスクトップ版のみ）。
+### Dependencies
+
+- A C++17 compiler
+- CMake 3.16 or later
+- zlib
+- SDL2 (needed only for the desktop player; without it, only the headless tools are built)
+
+On Debian/Ubuntu:
+
+```
+sudo apt install build-essential cmake zlib1g-dev libsdl2-dev
+```
+
+### Building
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-生成物:
+This produces:
 
-| 実行ファイル | 内容 |
+| Executable | Description |
 |---|---|
-| `opendt` | デスクトップ版（SDL2）。ゲーム選択画面つき |
-| `opendt-headless` | 画面なしの実行器。台本で入力し、PNG と WAV を出力する（テスト用） |
-| `mmlplay` | MML / SOUND.DAT の再生・一括コンパイル確認ツール |
-| `unit_tests` | ユニットテスト |
+| `opendt` | Desktop player (SDL2), with a game selection screen |
+| `opendt-headless` | Headless runner for testing and automation (scripted input, PNG/WAV output) |
+| `mmlplay` | Plays MML / SOUND.DAT music and batch-checks MML compilation |
+| `unit_tests` | Unit tests |
 
-## 遊び方
+### Running
 
 ```
-build/opendt <ゲームのフォルダ | ゲームが入ったフォルダ> [--no-title] [--scale N] [--fullscreen] [--mute]
+build/opendt [GAME_OR_FOLDER] [--no-title] [--scale N] [--fullscreen] [--mute] [-v]
 ```
 
-- ゲームのフォルダ（RPG.EXE のある場所）を指定すると直接起動する。それ以外のフォルダを指定すると、その下を
-  探してゲーム選択画面を出す。
-- `--no-title`: 原本を引数なしで起動したのと同じ。D1 はオープニングを省略、D2 はテストプレイモード
-  （デバッグメニューが使える）。
+- If `GAME_OR_FOLDER` is a game folder (the folder containing RPG.EXE), the game starts directly.
+- If it is any other folder, OpenDT searches it for games and shows a game selection screen.
+- If omitted, the current directory is used.
 
-| キー | 意味 |
+| Option | Meaning |
 |---|---|
-| カーソル / テンキー 8 2 4 6 | 移動・カーソル |
-| Z / Enter / Space | 決定・調べる |
-| X / Esc / Backspace | 取消・メニュー |
-| Q / Shift | メッセージ早送り（D1 の Q、D2 の SHIFT） |
-| Ctrl | デバッグ（D1 の進行モニタ、D2 テストプレイの STOP は Esc+Ctrl） |
-| Page Up / Page Down | PC-98 の ROLL UP / ROLL DOWN（D2 デバッグメニューの変数エディタで値 +1 / −1） |
-| Tab（押している間） | 早送り |
-| F12 | スクリーンショット（`opendt_NNN.png`） |
-| Alt+Enter | 全画面切り替え |
+| `--no-title` | Same as starting the original with no arguments: D1 skips the opening; D2 starts in test-play mode (the debug menu is available) |
+| `--scale N` | Window scale factor (default 2) |
+| `--fullscreen` | Start in fullscreen |
+| `--mute` | Disable sound |
+| `-v` | Verbose log output |
 
-## ヘッドレス実行器
+### Controls
+
+| Key | Function |
+|---|---|
+| Cursor keys / numpad 8 2 4 6 | Move, cursor |
+| Z / Enter / Space | Confirm, examine |
+| X / Esc / Backspace | Cancel, menu |
+| Q / Shift | Fast-forward messages (Q in D1, SHIFT in D2) |
+| Ctrl | Debug (progress monitor in D1; in D2 test play, STOP is Esc+Ctrl) |
+| Page Up / Page Down | PC-98 ROLL UP / ROLL DOWN (value +1 / −1 in the variable editor of the D2 debug menu) |
+| Tab (hold) | Fast-forward |
+| F12 | Screenshot (`opendt_NNN.png`) |
+| Alt+Enter | Toggle fullscreen |
+
+## Games
+
+No game data is included. Supply your own game folders: each game is the folder containing its RPG.EXE and
+data files. You can point `opendt` at a single game folder or at a folder that holds several games.
+
+## Headless runner
+
+`opendt-headless` runs a game without a window, driven by a script, and writes screenshots (PNG) and audio
+(WAV). It is intended for testing and automation.
 
 ```
-build/opendt-headless GAMEDIR -k "60 shot:title 30 z 30 z 150 shot:start" -o OUTDIR [-w out.wav] [-n 1500] [-v]
-    [--no-title] [--warp M,X,Y] [--battle G] [--gold N] [--item ID] [--seed N]
+build/opendt-headless GAMEDIR -k "60 shot:title 30 z 30 z 150 shot:start" -o OUTDIR [-w out.wav] [-n FRAMES] [-v]
+    [-s SCRIPT_FILE] [--no-title] [--no-quit] [--warp M,X,Y] [--battle G] [--gold N] [--item ID] [--seed N]
 build/opendt-headless --games FOLDER -o OUTDIR
 ```
 
-台本の語: `N`（N フレーム待つ）、`z x u d l r q c p n`（決定・取消・上下左右・高速・Ctrl・ROLL UP・ROLL DOWN を
-同時押し、`*N` で N フレーム押し続ける）、`shot:名前`、`quit`。
+Script words: `N` (wait N frames); `z x u d l r q c p n` (press confirm, cancel, up, down, left, right, fast,
+Ctrl, ROLL UP, ROLL DOWN; letters in one word are pressed together, and `*N` holds them for N frames);
+`shot:NAME` (save `OUTDIR/NAME.png`); `quit`. `-n` sets the maximum number of frames to run (default 600).
+`--games` lists the games found under a folder and renders the game browser to `OUTDIR/games.png`.
 
-## テスト
+## Running tests
 
 ```
-build/unit_tests                 # ユニットテスト
-tools/run_all_refs.sh            # 全サンプルで参考画面と画素比較
+build/unit_tests                 # unit tests
+tools/run_all_refs.sh            # pixel comparison against reference screens for all sample games
 ```
 
-## 構成
+Tests that need game data read it from your own copies; configure them with environment variables:
 
-| ディレクトリ | 内容 | 仕様の章 |
-|---|---|---|
-| `src/core` | 画面モデル（640×400・16 色・テキスト層・スクロール）、文字、乱数、ファイル、PNG/WAV | 01 |
-| `src/music` | MUSIC.COM 互換ドライバ（MML コンパイラ、シーケンサ、効果音）、ymfm 接続 | 02 |
-| `src/d1` | D1 エンジン | 10, 11, 12, 19 |
-| `src/d2` | D2 エンジン | 20–24 |
-| `src/app` | ランチャー、SDL フロントエンド、ヘッドレス実行器、mmlplay | 01 §7, §9 |
-| `tools/dosbox` | 原本観察用ハーネス（DOSBox-X、PC-98 モード） | — |
-| `docs` | 開発ルール、D2 の構造、仕様への質問 | — |
+| Variable | Used by | Meaning | Default |
+|---|---|---|---|
+| `OPENDT_SAMPLES` | unit tests, `run_all_refs.sh` | Root of the sample games, laid out as `<root>/games/<archive>/…` and `<root>/d1/<name>/…` | `./samples` |
+| `OPENDT_TMP` | unit tests | Scratch directory | `/tmp` |
+| `OPENDT_REF` | `run_all_refs.sh` | The `reference_shots` directory from the clean-room specification (required) | — |
+| `BIN` | `run_all_refs.sh` | Headless runner to use | `build/opendt-headless` |
+| `OUT` | `run_all_refs.sh` | Output directory for screenshots and logs | `/tmp/opendt_refs` |
 
-## ライセンス
+## Clean-room implementation
 
-- 本体: MIT License（`LICENSE`）
-- `third_party/ymfm`: BSD-3-Clause（`third_party/ymfm/LICENSE`）
-- 字形データ（`src/core/font_data.cpp`、`tools/*.pcf.gz`）: 東雲フォント（パブリックドメイン）
-- ゲームデータ・原本の実行ファイルは含まない。
+OpenDT was written only from a natural-language specification of the original software produced by a separate
+team, together with the data files of sample games and black-box observation of the original running in an
+emulator. The original executables were not disassembled (beyond the byte reads for version detection that the
+specification allows), and no code or information from other implementations was used. The historical records
+of this process (development rules, observation notes, questions to the specification) are kept in
+[docs/cleanroom/](docs/cleanroom/README.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions must follow the clean-room rules described there.
+
+## License
+
+- OpenDT: MIT License ([LICENSE](LICENSE))
+- `third_party/ymfm`: BSD-3-Clause (`third_party/ymfm/LICENSE`)
+- Glyph data (`src/core/font_data.cpp`, `tools/*.pcf.gz`): Shinonome font (public domain)
+- No game data or original executables are included.
+
+## Trademarks
+
+Dante98, Dante98 II and RPGツクール (RPG Tsukuru / RPG Maker) are trademarks of their respective owners. OpenDT
+is an independent project and is not affiliated with or endorsed by them. These names are used only to describe
+compatibility.
+
+## Acknowledgements
+
+- [ymfm](https://github.com/aaronsgiles/ymfm) by Aaron Giles, used for YM2203 emulation.
+- The Shinonome bitmap fonts (public domain), used for text rendering.

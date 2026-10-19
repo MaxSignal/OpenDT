@@ -1,27 +1,28 @@
-# 原本の挙動観察（DOSBox-X PC-98 モード）
+# Observing the original (DOSBox-X, PC-98 mode)
 
-ユーザーの許可により、原本（RPG.EXE / MUSIC.COM）をエミュレータで**実行して外から観察する**ことは可。
-逆アセンブル・メモリダンプ解析・デバッガでのコード追跡は不可（ブラックボックス観察のみ）。
+With the user's permission, the original (RPG.EXE / MUSIC.COM) may be **run in an emulator and observed from
+the outside**. Disassembly, memory-dump analysis and tracing code in a debugger are not allowed (black-box
+observation only).
 
-## 使い方
+## Usage
 
 ```
 H98_DISPLAY=101 python3 tools/dosbox/h98.py GAMEDIR OUTDIR "MUSIC -R;RPG" "5 shot:a key:Return 3 shot:b hold:Right:1.0 shot:c"
 ```
 
-- 台本の語: 秒数（実数）で待つ / `key:名前`（xdotool のキー名: Return, Escape, Up, Down, Left, Right, z, x, Shift_L …）
-  / `hold:名前:秒` / `shot:名前`（OUTDIR/名前.png、640×400）。
-- 並行して使う場合は `H98_DISPLAY` を担当ごとに変える（music=101, d1=102, d2=103, その他=104〜）。
-- FM 音源は PC-9801-26K（I/O 0x188, IRQ 12）。`MUSIC -R` で常駐させてから `RPG` を起動する。
-- D1 はオープニングでキー入力待ちになる。時間は実時間なので、フレーム単位の厳密な比較には向かない
-  （画面配置・色・文言・進行の確認に使う）。
-- 実時間で動くのでエミュレータ速度（cycles=max）に依存する。
+- Script words: a number of seconds (real) to wait / `key:NAME` (xdotool key names: Return, Escape, Up, Down,
+  Left, Right, z, x, Shift_L …) / `hold:NAME:SECONDS` / `shot:NAME` (OUTDIR/NAME.png, 640×400).
+- When used in parallel, give each owner a different `H98_DISPLAY` (music=101, d1=102, d2=103, others=104+).
+- The FM sound board is a PC-9801-26K (I/O 0x188, IRQ 12). Make it resident with `MUSIC -R`, then start `RPG`.
+- D1 waits for a key press during the opening. Timing is real time, so this is not suited to exact
+  frame-by-frame comparison (use it to check screen layout, colors, wording and progression).
+- Because it runs in real time, results depend on emulator speed (cycles=max).
 
-## 既知の制限
+## Known limitations
 
-- **D1 はゲーム同梱のバッチファイルから起動する**こと（例: come は `COME`。中身は `music -r` → `edinit q` →
-  `rpg 0` → `music -r`）。`MUSIC -R;RPG` のように RPG を引数なしで直接起動すると黒画面のまま進まない。
-  バッチ経由なら come のタイトル画像・タイトルメニュー・最初のマップ（赤一色）が参考画面と同じに表示される
-  （2026-10-18 確認）。
-- D2 は正常に動作する（dino、keep で確認）。
-- 追加の DOSBox-X 設定は `H98_SET="section property=value;..."` で渡せる。
+- **Start D1 from the batch file shipped with the game** (e.g. `COME` for come, which runs `music -r` →
+  `edinit q` → `rpg 0` → `music -r`). Starting RPG directly with no arguments, as in `MUSIC -R;RPG`, leaves a
+  black screen that never progresses. Via the batch file, come's title image, title menu and first map (solid
+  red) match the reference screens (confirmed 2026-10-18).
+- D2 works correctly (confirmed with dino and keep).
+- Additional DOSBox-X settings can be passed with `H98_SET="section property=value;..."`.

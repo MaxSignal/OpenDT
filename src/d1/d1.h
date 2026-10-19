@@ -1,4 +1,4 @@
-// D1 (RPGツクール Dante98) engine entry point.
+// D1 (RPG Tsukuru Dante98) engine entry point.
 #pragma once
 #include <memory>
 #include <string>

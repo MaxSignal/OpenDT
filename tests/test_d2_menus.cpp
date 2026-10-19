@@ -186,7 +186,7 @@ TEST(d2menu_shop_buy_sell_inn) {
   CHECK_EQ(g->st.gold, 12u);
   CHECK_EQ(g->st.shopDone, 1);
   // selling a price-0 item is refused
-  g->addItem(13);  // 片刃の剣, price 0
+  g->addItem(13);  // "片刃の剣" (single-edged sword), price 0
   g->moveItemToEnd(104);
   h.script("4 z 4 z 4 x");
   h.tail = 50;
@@ -243,7 +243,7 @@ TEST(d2menu_field_item_use) {
   h.script("");
   auto g = startGame(h, root);
   std::memset(g->inventory, 0, sizeof(g->inventory));
-  g->addItem(104);  // 傷薬: heal 25, consumable
+  g->addItem(104);  // "傷薬" (salve): heal 25, consumable
   g->addItem(104);
   d2::Member& m = g->members[g->st.party[0]];
   m.hp = 1;
@@ -268,7 +268,7 @@ TEST(d2menu_field_item_use) {
     CHECK(!"menu did not close");
   }
   CHECK_EQ(g->itemCount(1), 1);
-  // discard: item 1 -> 捨てる -> 捨てる
+  // discard: item 1 -> "捨てる" (Discard) -> "捨てる" (confirm)
   h.script("8 z 8 z 8 d d z 8 u z 8 x");
   h.tail = 60;
   try {
@@ -294,8 +294,8 @@ TEST(d2menu_equip_change) {
   g->recalc(m);
   const int atk0 = m.stat[0];
   g->addItem(35);  // armor first: not a weapon candidate
-  g->addItem(2);   // 木刀 +7 atk
-  // menu: equip (cmd 2) -> member 0 -> slot 0 -> candidate 0 (木刀) -> cancel slot -> cancel menu
+  g->addItem(2);   // "木刀" (wooden sword) +7 atk
+  // menu: equip (cmd 2) -> member 0 -> slot 0 -> candidate 0 (wooden sword) -> cancel slot -> cancel menu
   h.script("8 d d z 8 z 8 z 8 z 8 x 8 x");
   h.tail = 60;
   try {
@@ -590,7 +590,7 @@ TEST(d2menu_v11_variable_editor_roll_keys) {
   g->vars[0] = 98;
   g->vars[1] = 0;
   g->vars[6] = 0;
-  // debug menu: down x5 -> 変数 -> (inject keys) -> cancel debug menu
+  // debug menu: down x5 -> "変数" (Variables) -> (inject keys) -> cancel debug menu
   h.script("8 d d d d d z 60 x");
   h.tail = 60;
   const long base = h.count;

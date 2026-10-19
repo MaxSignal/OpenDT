@@ -1,101 +1,109 @@
-# D2 エンジンの構成（後続の実装担当向け）
+# D2 engine architecture (for subsequent implementers)
 
-対象: `src/d2/`。仕様は 20〜24 章。ここでは既に実装済みの土台と、22（イベント）・23（メニュー）・
-24（戦闘）の担当が埋める差し込み口（フック）を説明する。
+Scope: `src/d2/`. Specification chapters 20–24. This document describes the foundation that is already
+implemented and the extension points (hooks) to be filled in by the owners of chapters 22 (events), 23 (menus)
+and 24 (battle).
 
-## ファイル
+## Files
 
-| ファイル | 内容 | 担当 |
+| File | Contents | Owner |
 |---|---|---|
-| `data.h/.cpp` | 20 章の全データ形式（packed 構造体でファイルとバイト一致）、ビルド判別、各種ローダ | 済 |
-| `game.h` | `d2::Game`（全状態と全ヘルパの宣言） | 済（追加は最小限に） |
-| `game.cpp` | VSYNC・待ち・入力（キーバッファ/リピート/方向読み取り/キー待ち）、パレット（トーン・フェード・色調・フラッシュ・揺れ）、ウィンドウ枠・文字・選択カーソル・メッセージウィンドウ・文章 1 行・所持金ウィンドウ、共通ゲームルール（23 §1） | 済 |
-| `field.cpp` | 21 章: マップ読込/進入、描画、主人公移動、NPC、移動命令、tick、乗り物、エンカウント、戦闘呼び出し（21 §10.2）、イベント起動判定と開始/終了処理、メインループ | 済 |
-| `flow.cpp` | 起動、タイトル、ニューゲーム、セーブ/ロード、デバッグ開始オプション、`createEngine` | 済 |
-| `hooks.h` | 差し込み口の宣言（下記） | 済 |
-| `events.cpp` | **仮実装**。22 章の担当が置き換える | 22 担当 |
-| `menus.cpp` | **仮実装**。23 章の担当が置き換える | 23 担当 |
-| `battle.cpp` | **仮実装**。24 章の担当が置き換える | 24 担当 |
+| `data.h/.cpp` | All data formats of chapter 20 (packed structs that match the files byte for byte), build detection, loaders | Done |
+| `game.h` | `d2::Game` (declarations of all state and all helpers) | Done (keep additions minimal) |
+| `game.cpp` | VSYNC, waits, input (key buffer/repeat/direction reading/key wait), palette (tone, fades, color tone, flash, shake), window frames, text, selection cursor, message window, single text line, gold window, common game rules (23 §1) | Done |
+| `field.cpp` | Chapter 21: map loading/entry, drawing, hero movement, NPCs, move commands, tick, vehicles, encounters, battle invocation (21 §10.2), event trigger checks and start/end processing, main loop | Done |
+| `flow.cpp` | Startup, title, new game, save/load, debug start options, `createEngine` | Done |
+| `hooks.h` | Hook declarations (see below) | Done |
+| `events.cpp` | **Provisional**. To be replaced by the chapter 22 owner | Ch. 22 owner |
+| `menus.cpp` | **Provisional**. To be replaced by the chapter 23 owner | Ch. 23 owner |
+| `battle.cpp` | **Provisional**. To be replaced by the chapter 24 owner | Ch. 24 owner |
 
-担当ごとにファイルを増やしてよい（`events_*.cpp` など。CMake は `src/d2/*.cpp` を自動で拾う）。
-担当固有の状態は、自分のファイル内の構造体か `Game` への最小限の追加で持つ（同時編集を避けるため、
-`game.h` への追加は末尾の「担当別」節にまとめること）。
+Owners may add files (e.g. `events_*.cpp`; CMake picks up `src/d2/*.cpp` automatically). Keep owner-specific
+state in a struct in your own file or as a minimal addition to `Game` (to avoid concurrent edits, put additions
+to `game.h` in the per-owner section at the end).
 
-## 差し込み口（`hooks.h`）
+## Hooks (`hooks.h`)
 
 ```cpp
-int  runEvent(Game& g, int eventNo, int trigger);                 // 22: 受理後に呼ばれる。§4.1→§5→§4.2
+int  runEvent(Game& g, int eventNo, int trigger);                 // 22: called after acceptance. §4.1→§5→§4.2
 void fieldMenu(Game& g);                                          // 23 §3
-void shopBuySell(Game& g, const std::vector<uint8_t>& goods);     // 23 §11.1（0x3C）
-void shopBuy(Game& g, const std::vector<uint8_t>& goods);         // 23 §11.2（0x3D）
-void shopSell(Game& g);                                           // 23 §11.3（0x3E）
-void inn(Game& g, int price);                                     // 23 §12（0x3F）
-int  battle(Game& g, int group, int gameOverMode);                // 24（遷移演出と §4.5 の後始末を含む）
+void shopBuySell(Game& g, const std::vector<uint8_t>& goods);     // 23 §11.1 (0x3C)
+void shopBuy(Game& g, const std::vector<uint8_t>& goods);         // 23 §11.2 (0x3D)
+void shopSell(Game& g);                                           // 23 §11.3 (0x3E)
+void inn(Game& g, int price);                                     // 23 §12 (0x3F)
+int  battle(Game& g, int group, int gameOverMode);                // 24 (includes transition effect and §4.5 cleanup)
 ```
 
-- `runEvent` の前に、21 §7.3 / 22 §3.2 の受理判定は `Game::tryStartEvent` が済ませている。
-  `runEvent` の中で `g.beginEvent(i, t)`（22 §4.1 の 1・3〜7。振り向きを含む）→ コマンドループ →
-  `g.endEvent()`（22 §4.2）を呼ぶ。ラベル表・分岐結果表・作業領域は events 側で持つ。
-  自分を動かすコマンド（0x4B/0x50/0x51/0x56）では `g.run_.movedSelf = true` にする。
-  場所移動で別マップになった場合は `g.run_.savedBattleBgm` を新マップの戦闘 BGM 名で置き換える（22 0x10）。
-  `g.run_.startMap` が開始時のマップ。
-- STOP（テストプレイ時の Ctrl+取消）は `g.checkStop()` が `d2::EventAbort` を投げる（イベント実行中のみ）。
-  `keyWait`・`select`・`tick` は内部で `checkStop()` を呼ぶ。`runEvent` はこれを捕まえて 22 §5.4 の手順
-  （`st.eventRunning=0` → `waitHeroStill()` → `drawField()` → `endEvent()`、戻り値 0）を行う。
-- 戦闘の呼び出しは、呼び出し側処理（21 §10.2: 戦闘 BGM、グラフィック再読込、消去、ページ更新、マスク、
-  色調再適用、再描画、T=100、BGM 復帰）込みの `g.callBattle(group, gameOverMode, eraseEvent)` を使う。
-  `battle()` 本体は 24 章の範囲だけを行う。ゲームオーバーは `throw d2::ReturnToTitle()`。
-- 戦闘背景番号は呼び出し側が `g.st.battleBg` に設定する。
+- Before `runEvent` is called, `Game::tryStartEvent` has already performed the acceptance check of
+  21 §7.3 / 22 §3.2. Inside `runEvent`, call `g.beginEvent(i, t)` (steps 1 and 3–7 of 22 §4.1, including
+  turning to face) → command loop → `g.endEvent()` (22 §4.2). The label table, branch result table and work
+  area belong to the events side.
+  Commands that move the event itself (0x4B/0x50/0x51/0x56) set `g.run_.movedSelf = true`.
+  When a location change moves to a different map, replace `g.run_.savedBattleBgm` with the new map's battle
+  BGM name (22 0x10). `g.run_.startMap` is the map at the start.
+- STOP (Ctrl+cancel in test play) makes `g.checkStop()` throw `d2::EventAbort` (only while an event is
+  running). `keyWait`, `select` and `tick` call `checkStop()` internally. `runEvent` catches it and performs
+  the procedure of 22 §5.4 (`st.eventRunning=0` → `waitHeroStill()` → `drawField()` → `endEvent()`, return 0).
+- To start a battle, use `g.callBattle(group, gameOverMode, eraseEvent)`, which includes the caller-side
+  processing (21 §10.2: battle BGM, graphics reload, erase, page update, mask, color tone reapplication,
+  redraw, T=100, BGM restore). `battle()` itself only does what chapter 24 covers. Game over is
+  `throw d2::ReturnToTitle()`.
+- The caller sets the battle background number in `g.st.battleBg`.
 
-## 制御の流れ（例外）
+## Control flow (exceptions)
 
-| 例外 | 意味 | 捕まえる場所 |
+| Exception | Meaning | Caught in |
 |---|---|---|
-| `d2::ReturnToTitle` | タイトルへ戻る（全滅、イベント 0x61） | `titleLoop`（状態は PLAYER.DAT から戻る） |
-| `d2::QuitProgram` | プログラム終了（システムメニュー「終了」、イベント 0x62）。先にブラックアウト等は呼び出し側で | `run`（`--no-quit` ならタイトルへ） |
-| `d2::EventAbort` | STOP によるイベント中断 | `runEvent` |
-| `core::QuitGame` | ホストからの終了要求 | ホスト |
+| `d2::ReturnToTitle` | Return to title (party wiped out, event 0x61) | `titleLoop` (state is restored from PLAYER.DAT) |
+| `d2::QuitProgram` | Quit the program (system menu 「終了」 ("Quit"), event 0x62). The caller does any blackout etc. first | `run` (returns to title with `--no-quit`) |
+| `d2::EventAbort` | Event aborted by STOP | `runEvent` |
+| `core::QuitGame` | Quit request from the host | Host |
 
-## 主な状態（`Game` のメンバ）
+## Main state (`Game` members)
 
-- `members[12]`（`Member`、PLAYER.DAT 200 バイト記録そのもの）、`st`（`StateBlock`、0x2A8 バイト）、
-  `inventory[260][2]`、`switches[1001]`、`vars[100]`。セーブは `buildSave()` / `saveSlot(k)` / `loadSlot(k)`。
-- `db`（`Database`）: アイテム・魔法・敵・敵グループ・WORD.DAT（`db.wordAt(off)`）・マップ名・外字・タイトル画像。
-- `map`（`MapData`）: ヘッダ、160×160 グリッド、区域表、版数、イベント（`map.events[i]` は
-  イベント領域内の `EventRec*`、無ければ nullptr）。スクリプトは `map.script(i, page, &len)`（len は終端込み）。
-- `chips`（属性・エンカウント種別・戦闘背景）、`chipset` / `chrSlot[4]` / `cache[33]`（パターン）。
-- `upperMap` / `lowerMap`（イベント位置図）、`viewX/viewY`（ビュー原点）。
-- パレット: `curPal`（8 ビット）、`basePal`（チップセット 4 ビット）、`tone`。表示反映は `applyPalette()`。
-- `frameCounter`（自走カウンタ）、`waitCounter`（待ちカウンタ）、`embed`（`\@` の埋め込み文字列）。
-- `build`（`Build::B9606/B9608/B9703/B9710`、`isOldBuild(build)`）、`testPlay`（`--no-title`）。
+- `members[12]` (`Member`, the 200-byte PLAYER.DAT record as is), `st` (`StateBlock`, 0x2A8 bytes),
+  `inventory[260][2]`, `switches[1001]`, `vars[100]`. Saving: `buildSave()` / `saveSlot(k)` / `loadSlot(k)`.
+- `db` (`Database`): items, magic, enemies, enemy groups, WORD.DAT (`db.wordAt(off)`), map names, gaiji
+  (custom glyphs), title image.
+- `map` (`MapData`): header, 160×160 grid, area table, version, events (`map.events[i]` is an `EventRec*`
+  into the event area, or nullptr if absent). Scripts: `map.script(i, page, &len)` (len includes the
+  terminator).
+- `chips` (attributes, encounter type, battle background), `chipset` / `chrSlot[4]` / `cache[33]` (patterns).
+- `upperMap` / `lowerMap` (event position maps), `viewX/viewY` (view origin).
+- Palette: `curPal` (8-bit), `basePal` (chipset, 4-bit), `tone`. Apply to the display with `applyPalette()`.
+- `frameCounter` (free-running counter), `waitCounter` (wait counter), `embed` (embedded string for `\@`).
+- `build` (`Build::B9606/B9608/B9703/B9710`, `isOldBuild(build)`), `testPlay` (`--no-title`).
 
-## 主なヘルパ
+## Main helpers
 
-| 用途 | 関数 |
+| Purpose | Functions |
 |---|---|
-| 時間 | `vsync()`、`waitFrames(n)`、`waitMs(ms)`（56.42 Hz 換算・繰り越し）、`waitUnits(n)`（21 §1.2） |
-| 音 | `sfx(n)`（ドライバには n+10）、`playBgm(name9)`、`stopBgm()`、`bgmEqual`（9 バイト）/`bgmEqual8` |
-| 入力 | `popKey()`（`kKeyEsc` 等、無ければ `kKeyNone`）、`clearKeys()`、`recordLatch()`、`readDirection()`、`keyWait()`（キー離し→押し、乱数消費）、`keyWaitMark()`（▼つき）、`cur`/`prev`（今回/前回の入力） |
-| パレット | `setTone(t)`、`vsyncTone(t)`、`blackOut/blackIn/whiteOut/whiteIn(s)`、`toneChange(k, s)`、`reapplyTone()`、`flash()`、`shake()`、`setPal4(i,r,g,b)` |
-| 描画 | `drawText(x,y,sjis,color)`（D2 グラフィック文字、太字・透明）、`textWidth()`、`drawWindow(x,y,w,h)`（23 §2.1）、`drawCursor()`、`select(x,y,n,init,mode)`（22 §6.4）、`fieldMask()/menuMask()/windowMask()/clearTextLayer()`、`goldWindow(x,y)`、`scr`（`core::Screen`） |
-| メッセージ | `openMessage()`、`closeMessage()`、`messageLine(line, s)`（22 §6.2 の制御記法つき 1 行。`\^` を見たら true） |
-| フィールド | `drawField()`、`enterMap()`、`updatePages()`、`activePage(i)`、`eraseEvent(i, permanent)`、`tick(n)`、`waitHeroStill()`、`waitEventStill(i)`、`clearMoveCommands()`、`setHeroMoveCommand(m)`、`setEventMoveCommand(i,m)`、`reloadHeroSprite()`、`reloadVehicleSprites()`、`reloadAllSprites()`、`boardShip(withBgm)`、`callBattle(...)`、`chipAt/attrAt(x,y)` |
-| ルール | `recalc(m)`、`recalcAll()`、`levelUp(m)`、`levelDown(m)`、`addHp(m,n)`、`fullHeal(m)`、`gameOver()`、`joinParty/leaveParty/inParty/leader()`、`learnMagic/forgetMagic`、`addItem/removeItem/packInventory/moveItemToEnd/discardItem/hasItem/itemCount`、`addGold/subGold`、`updatePoison()`、`expForLevel/statForLevel` |
-| フロー | `slotSelect(x,y)`、`saveSlot(k)`、`loadSlot(k)`（20 §9.3 のブラックアウト込み。ファイルが無ければ false） |
+| Time | `vsync()`, `waitFrames(n)`, `waitMs(ms)` (converted at 56.42 Hz, with carry-over), `waitUnits(n)` (21 §1.2) |
+| Sound | `sfx(n)` (n+10 is sent to the driver), `playBgm(name9)`, `stopBgm()`, `bgmEqual` (9 bytes)/`bgmEqual8` |
+| Input | `popKey()` (`kKeyEsc` etc., `kKeyNone` if empty), `clearKeys()`, `recordLatch()`, `readDirection()`, `keyWait()` (key release → press, consumes RNG), `keyWaitMark()` (with ▼ marker), `cur`/`prev` (current/previous input) |
+| Palette | `setTone(t)`, `vsyncTone(t)`, `blackOut/blackIn/whiteOut/whiteIn(s)`, `toneChange(k, s)`, `reapplyTone()`, `flash()`, `shake()`, `setPal4(i,r,g,b)` |
+| Drawing | `drawText(x,y,sjis,color)` (D2 graphic text, bold, transparent), `textWidth()`, `drawWindow(x,y,w,h)` (23 §2.1), `drawCursor()`, `select(x,y,n,init,mode)` (22 §6.4), `fieldMask()/menuMask()/windowMask()/clearTextLayer()`, `goldWindow(x,y)`, `scr` (`core::Screen`) |
+| Messages | `openMessage()`, `closeMessage()`, `messageLine(line, s)` (one line with the control codes of 22 §6.2; returns true when it sees `\^`) |
+| Field | `drawField()`, `enterMap()`, `updatePages()`, `activePage(i)`, `eraseEvent(i, permanent)`, `tick(n)`, `waitHeroStill()`, `waitEventStill(i)`, `clearMoveCommands()`, `setHeroMoveCommand(m)`, `setEventMoveCommand(i,m)`, `reloadHeroSprite()`, `reloadVehicleSprites()`, `reloadAllSprites()`, `boardShip(withBgm)`, `callBattle(...)`, `chipAt/attrAt(x,y)` |
+| Rules | `recalc(m)`, `recalcAll()`, `levelUp(m)`, `levelDown(m)`, `addHp(m,n)`, `fullHeal(m)`, `gameOver()`, `joinParty/leaveParty/inParty/leader()`, `learnMagic/forgetMagic`, `addItem/removeItem/packInventory/moveItemToEnd/discardItem/hasItem/itemCount`, `addGold/subGold`, `updatePoison()`, `expForLevel/statForLevel` |
+| Flow | `slotSelect(x,y)`, `saveSlot(k)`, `loadSlot(k)` (includes the blackout of 20 §9.3; returns false if the file does not exist) |
 
-文字列定数（「ニューゲーム」等の RPG.EXE 内蔵文字列）は UTF-8 で書いて `core::utf8ToSjis()` で SJIS にする。
+String constants (strings built into RPG.EXE, such as 「ニューゲーム」 ("New Game")) are written in UTF-8 and
+converted to SJIS with `core::utf8ToSjis()`.
 
-## 仮実装の現状
+## Status of the provisional implementations
 
-- `events.cpp`: **本実装済み**（22 章の全コマンド、ラベル、分岐結果表、飛び越し、STOP、ゲームオーバー検査）。
-  単体テスト用に `events.h`（`runScript`・`evalCondition`・`skipTo`・`moveWaitTicks`）を公開している。
-  質問は `docs/questions_d2_events.md`。
-- `menus.cpp`: メニューを開いてすぐ閉じる。店・宿は何もしない。
-- `battle.cpp`: 24 §4.5 の後始末だけをして勝利を返す。
+- `events.cpp`: **fully implemented** (all chapter 22 commands, labels, branch result table, skipping, STOP,
+  game-over check). For unit tests it exposes `events.h` (`runScript`, `evalCondition`, `skipTo`,
+  `moveWaitTicks`). Questions are in `docs/questions_d2_events.md`.
+- `menus.cpp`: opens the menu and closes it immediately. Shops and inns do nothing.
+- `battle.cpp`: performs only the 24 §4.5 cleanup and returns victory.
 
-## テスト
+## Tests
 
-- `tests/test_d2.cpp`（20・21 章の受け入れ観点）。
-- 参考画面との比較: `-k "60 shot:01_title 30 z 30 z 150 shot:02_start z 70 z 70 shot:03_after_ok x 60 shot:04_menu x 60 r*40 l*40 shot:05_walk" -n 1500`
-  で全 23 本を撮り、`reference_shots/<game>/` と画素比較する。現時点で 01_title は全一致、
-  dino・keep・knuckle は 5 枚とも一致。残りの差はイベントコマンド（選択肢・ピクチャ・色調など）の未実装による。
+- `tests/test_d2.cpp` (acceptance points of chapters 20 and 21).
+- Comparison with reference screens: run all 23 games with
+  `-k "60 shot:01_title 30 z 30 z 150 shot:02_start z 70 z 70 shot:03_after_ok x 60 shot:04_menu x 60 r*40 l*40 shot:05_walk" -n 1500`
+  and compare pixels against `reference_shots/<game>/`. Currently 01_title matches for all games, and dino,
+  keep and knuckle match on all 5 shots. The remaining differences are due to unimplemented event commands
+  (choices, pictures, color tone, etc.).

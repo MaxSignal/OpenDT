@@ -126,9 +126,9 @@ class Game : public core::Engine {
   bool stopPressed() const { return testPlay && cur.debug && cur.cancel; }
 
   // ===== palette (spec 21 §2) =====
-  void applyPalette();                 // "表示更新"
+  void applyPalette();                 // "表示更新" (update display)
   void setTone(int t) { tone = t; applyPalette(); }
-  void vsyncTone(int t) { vsync(); setTone(t); }  // "1 VSYNC 待ち、T=t で表示更新"
+  void vsyncTone(int t) { vsync(); setTone(t); }  // wait 1 VSYNC, then update the display with T=t
   void setPal4(int i, int r, int g, int b);       // 4-bit values (x17)
   void blackOut(int s);
   void blackIn(int s);
@@ -234,13 +234,13 @@ class Game : public core::Engine {
   int encounterCheck();                // spec 21 §10.1
   int callBattle(int group, int gameOverMode, int eraseEvent);  // spec 21 §10.2
   int tryStartEvent(int i, int t);     // spec 21 §7.3 (acceptance) -> hooks::runEvent
-  void beginEvent(int i, int t);       // spec 21 §7.3 "起動する場合" 1-4 / 22 §4.1 (no labels)
+  void beginEvent(int i, int t);       // spec 21 §7.3 "when starting" steps 1-4 / 22 §4.1 (no labels)
   void endEvent();                     // spec 21 §7.4 / 22 §4.2
-  void tick(int n);                    // spec 22 §6.5 "n tick 進める"
+  void tick(int n);                    // spec 22 §6.5 "advance n ticks"
   void waitHeroStill();                // spec 22 §6.5 hero walk completion
   void waitEventStill(int i);          // spec 22 §6.5 event walk completion (build I)
   void shipBoardCheck();               // spec 22 §6.5 step 5
-  void clearMoveCommands();            // spec 22 §6.6 "全移動命令の解除"
+  void clearMoveCommands();            // spec 22 §6.6 "clear all move commands"
   void setHeroMoveCommand(int m);      // spec 22 §6.6
   void setEventMoveCommand(int i, int m);
   void fieldLoop();                    // spec 21 §11 (until exception)
@@ -268,13 +268,13 @@ class Game : public core::Engine {
   bool loadSlot(int k);                // spec 20 §9.3 (blackout included); false if no file
   std::vector<uint8_t> buildSave() const;
 
-  // ===== 担当別: 2-column list page/cursor memory (spec 23 §2.3), shared by menus and battle =====
+  // ===== Subsystem state: 2-column list page/cursor memory (spec 23 §2.3), shared by menus and battle =====
   // Item list memory is shared by the field menu, shops and battle; battle start resets it
   // (24 §4.1). Magic list memory is one set per character.
   int itemListPage = 0, itemListPos = 0;
   int magicListPage[12] = {}, magicListPos[12] = {};
 
-  // ===== 担当別: field menu (spec 23) =====
+  // ===== Subsystem state: field menu (spec 23) =====
   // Warp destination list memory: never reset, survives returning to the title (23 §2.3).
   int warpListPage = 0, warpListPos = 0;
 };

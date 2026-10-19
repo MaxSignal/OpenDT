@@ -251,7 +251,7 @@ TEST(d2bat_init_from_samples) {
   MashHost h;
   core::StartOptions opt;
   Game g(h, kRing, opt);
-  // Ring enemy 1 "ディング": transform at <=150 into 2; instant death immune (resist 8 = 2)
+  // Ring enemy 1 "ディング" (Ding): transform at <=150 into 2; instant death immune (resist 8 = 2)
   Battler b;
   initEnemyBattler(b, g.db.enemies[1], 1);
   CHECK_EQ(b.maxHp, 300);

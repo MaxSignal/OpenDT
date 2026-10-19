@@ -31,7 +31,7 @@ TEST(core_ms_balance_d1) {
 }
 
 TEST(core_utf8_to_sjis) {
-  // 風薫るとき
+  // "風薫るとき" (Kaze Kaoru Toki, a sample game title)
   std::string s = core::utf8ToSjis("\xE9\xA2\xA8\xE8\x96\xAB\xE3\x82\x8B\xE3\x81\xA8\xE3\x81\x8D");
   CHECK_EQ(s.size(), size_t(10));
   CHECK_EQ(uint8_t(s[0]), 0x95);

@@ -284,7 +284,7 @@ int Game::eventAll(int x, int y) const {
 int Game::sameLayerValue(int vx, int vy) const {
   const int x = wrap(viewX + vx), y = wrap(viewY + vy);
   if (st.shipMap == st.curMap && st.shipX == x && st.shipY == y) return kShipValue;
-  // "足元チップ" is the chip at the queried position (spec 21 §5.6, v1.1; D2F-Q1).
+  // "足元チップ" (the chip underfoot) is the chip at the queried position (spec 21 §5.6, v1.1; D2F-Q1).
   if ((attrAt(x, y) & 0x60) == 0x60 || st.layer != 0) return lowerMap[y % kMapDim][x % kMapDim];
   return upperMap[y % kMapDim][x % kMapDim];
 }
@@ -720,7 +720,7 @@ bool Game::npcTryStep(int i, int d, bool fast) {
         }
       }
     }
-    // Step 4.4 decides the result on its own ("そうでなければ 0"): a pass-through event may step
+    // Step 4.4 decides the result on its own ("otherwise 0"): a pass-through event may step
     // onto the hero even when a parked vehicle shares the hero's cell (step 4.5 is skipped).
     bool decided = false;
     if (!res && tx == st.x && ty == st.y && (st.hidden == 0 || !st.eventRunning) &&

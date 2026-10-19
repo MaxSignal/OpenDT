@@ -1,4 +1,4 @@
-// D2 (RPGツクール Dante98 II) engine entry point.
+// D2 (RPG Tsukuru Dante98 II) engine entry point.
 #pragma once
 #include <memory>
 #include <string>
