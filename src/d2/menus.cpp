@@ -13,13 +13,18 @@ namespace {
 std::string sj(const char* utf8) { return core::utf8ToSjis(utf8); }
 
 // printf into a string. The format may contain Shift-JIS text (SJIS bytes never equal '%').
-std::string fmt(const std::string& f, ...) {
+// (va_start needs a non-reference last parameter, so the variadic part takes a C string.)
+std::string vfmt(const char* f, ...) {
   char buf[512];
   va_list ap;
   va_start(ap, f);
-  std::vsnprintf(buf, sizeof(buf), f.c_str(), ap);
+  std::vsnprintf(buf, sizeof(buf), f, ap);
   va_end(ap);
   return buf;
+}
+template <class... Args>
+std::string fmt(const std::string& f, Args... args) {
+  return vfmt(f.c_str(), args...);
 }
 
 std::string memberName(const Member& m) { return core::rawName(reinterpret_cast<const uint8_t*>(m.name), 20); }

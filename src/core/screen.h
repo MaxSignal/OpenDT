@@ -1,5 +1,6 @@
 // Pseudo PC-9801 screen model (spec 01 §1).
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
