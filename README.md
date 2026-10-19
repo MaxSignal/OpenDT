@@ -89,3 +89,10 @@ tools/run_all_refs.sh            # 全サンプルで参考画面と画素比較
 | `src/app` | ランチャー、SDL フロントエンド、ヘッドレス実行器、mmlplay | 01 §7, §9 |
 | `tools/dosbox` | 原本観察用ハーネス（DOSBox-X、PC-98 モード） | — |
 | `docs` | 開発ルール、D2 の構造、仕様への質問 | — |
+
+## ライセンス
+
+- 本体: MIT License（`LICENSE`）
+- `third_party/ymfm`: BSD-3-Clause（`third_party/ymfm/LICENSE`）
+- 字形データ（`src/core/font_data.cpp`、`tools/*.pcf.gz`）: 東雲フォント（パブリックドメイン）
+- ゲームデータ・原本の実行ファイルは含まない。
