@@ -1,7 +1,7 @@
 # Contributing to OpenDT
 
 Thank you for your interest in OpenDT. This document explains how to build and test the project, how the code
-is organized, and the clean-room rules every contribution must follow.
+is organized, and the clean-room policy that contributions follow.
 
 ## Building and testing
 
@@ -42,26 +42,38 @@ an overview, the platform layer, the music driver, and the D1 and D2 engines.
 
 Keep changes to `src/core` and `src/app` minimal and avoid breaking the other modules.
 
-## Clean-room rules
+## Clean-room policy
 
-OpenDT is a clean-room implementation. To keep it that way, contributors must follow these rules:
+OpenDT was written without looking at the code of the original programs or of other reimplementations, and we
+would like to keep it that way. This protects the project and its users from questions about where the code
+came from.
 
-1. **Do not read other reimplementations.** Do not look at the source code of, or information about, other
-   reimplementations of these engines, and do not use information about the
-   internals of the original software found on the Internet.
-2. **Do not disassemble the original executables.** Do not disassemble, decompile or otherwise analyze the
-   binaries of RPG.EXE, MUSIC.COM or other original executables. The only exceptions are the byte reads for
-   version detection and the version-string search that the specification explicitly allows.
-3. **Base changes on the specification and observation.** Every behavior must be justified by the clean-room
-   specification ([docs/cleanroom/spec/](docs/cleanroom/spec/README.md)), the game data files, or black-box observation of the original running in an emulator
-   (running it and watching the screen and sound is fine; memory-dump analysis and stepping through code in a
-   debugger are not). Mention the relevant spec section (e.g. "spec 22 §5.4") in code or commit messages where
-   helpful.
-4. **Record ambiguities instead of guessing.** When the specification is ambiguous or contradictory, do not
-   fill the gap by guesswork. Record it as a question (open an issue), and if a stopgap implementation is needed, mark it in
-   the code with `// PROVISIONAL(Qn):` referring to the question number.
+**What you can use**
 
-If you are unsure whether a source of information is acceptable, ask before using it.
+- The clean-room specification in [docs/cleanroom/spec/](docs/cleanroom/spec/README.md).
+- The game data files themselves (graphics, maps, databases, music data), which are what OpenDT reads.
+- Your own observations of the original games running in an emulator: what is on the screen, what you hear and
+  how the game reacts to input.
+- Public documentation of the hardware and the tools, such as PC-98 hardware references, YM2203 datasheets and
+  the user manuals.
+
+**What to avoid**
+
+- Disassembling, decompiling or debugging RPG.EXE, MUSIC.COM or other original executables. Running them in an
+  emulator and watching them is fine, but inspecting their code or memory is not.
+- Using code or internal notes from other reimplementations that were made by reverse engineering the
+  originals.
+
+If you have already studied such material, please don't contribute changes to the parts it covered. Reports,
+testing and work in other areas are still very welcome.
+
+**In practice**
+
+- When you change behavior, say in the pull request where it comes from: a section of the specification
+  (for example "spec 22 §5.4"), a data file, or an observation (what you ran and what you saw).
+- If the specification is unclear or contradicts itself, or you think it is wrong, open an issue rather than
+  guessing. A temporary implementation is fine if the code says it is temporary and links to the issue.
+- If you are not sure whether something is acceptable, ask in an issue first.
 
 ## Continuous integration and releases
 

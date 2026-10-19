@@ -152,7 +152,7 @@ the questions to the specification team, are kept in [docs/cleanroom/](docs/clea
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions must follow the clean-room rules described there. The
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please read its clean-room policy before contributing. The
 developer documentation is in [docs/](docs/README.md).
 
 ## License
