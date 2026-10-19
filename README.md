@@ -12,7 +12,7 @@ sound driver (MUSIC.COM).
 - Save/load compatible with the original save files.
 - MUSIC.COM-compatible FM/SSG music and sound effects via YM2203 emulation ([ymfm](third_party/ymfm)).
 - A built-in game browser: point it at a folder and pick a game.
-- Tested on Linux; any platform supported by SDL2 should work.
+- Developed and tested on Linux (game logic is verified with the headless runner). The SDL2 desktop player should work on any platform SDL2 supports.
 
 ## Getting started
 

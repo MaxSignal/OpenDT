@@ -57,7 +57,7 @@ OpenDT is a clean-room implementation. To keep it that way, contributors must fo
    debugger are not). Mention the relevant spec section (e.g. "spec 22 §5.4") in code or commit messages where
    helpful.
 4. **Record ambiguities instead of guessing.** When the specification is ambiguous or contradictory, do not
-   fill the gap by guesswork. Record it as a question, and if a stopgap implementation is needed, mark it in
+   fill the gap by guesswork. Record it as a question (open an issue), and if a stopgap implementation is needed, mark it in
    the code with `// PROVISIONAL(Qn):` referring to the question number.
 
 If you are unsure whether a source of information is acceptable, ask before using it.

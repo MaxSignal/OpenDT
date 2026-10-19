@@ -12,7 +12,7 @@ A clean-room reimplementation of a player for Dante98 / Dante98 II games.
    specification, is allowed). Searching for or retrieving information on the Internet about Dante98, MUSIC.COM
    or OpenDante98 (do not use WebSearch/WebFetch/curl).
 3. When the specification is ambiguous or contradictory, do not fill the gap by guesswork; record it as a
-   "question to the spec" in `docs/questions_<module>.md`. If you add a stopgap implementation, mark it in the
+   "question to the spec" in `docs/questions_<module>.md` (now `docs/cleanroom/questions/`). If you add a stopgap implementation, mark it in the
    code with `// PROVISIONAL(Qn):` using the matching question number.
 
 ## Layout

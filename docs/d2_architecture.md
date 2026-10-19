@@ -1,26 +1,22 @@
-# D2 engine architecture (for subsequent implementers)
+# D2 engine architecture
 
-Scope: `src/d2/`. Specification chapters 20–24. This document describes the foundation that is already
-implemented and the extension points (hooks) to be filled in by the owners of chapters 22 (events), 23 (menus)
-and 24 (battle).
+Scope: `src/d2/` (the Dante98 II engine), specification chapters 20–24. This document describes the game state,
+the shared helpers and how the event interpreter, menus and battle plug into the field engine.
 
 ## Files
 
-| File | Contents | Owner |
+| File | Contents | Spec |
 |---|---|---|
-| `data.h/.cpp` | All data formats of chapter 20 (packed structs that match the files byte for byte), build detection, loaders | Done |
-| `game.h` | `d2::Game` (declarations of all state and all helpers) | Done (keep additions minimal) |
-| `game.cpp` | VSYNC, waits, input (key buffer/repeat/direction reading/key wait), palette (tone, fades, color tone, flash, shake), window frames, text, selection cursor, message window, single text line, gold window, common game rules (23 §1) | Done |
-| `field.cpp` | Chapter 21: map loading/entry, drawing, hero movement, NPCs, move commands, tick, vehicles, encounters, battle invocation (21 §10.2), event trigger checks and start/end processing, main loop | Done |
-| `flow.cpp` | Startup, title, new game, save/load, debug start options, `createEngine` | Done |
-| `hooks.h` | Hook declarations (see below) | Done |
-| `events.cpp` | **Provisional**. To be replaced by the chapter 22 owner | Ch. 22 owner |
-| `menus.cpp` | **Provisional**. To be replaced by the chapter 23 owner | Ch. 23 owner |
-| `battle.cpp` | **Provisional**. To be replaced by the chapter 24 owner | Ch. 24 owner |
+| `data.h/.cpp` | All data formats (packed structs that match the files byte for byte), RPG.EXE build detection, loaders | 20 |
+| `game.h/.cpp` | `d2::Game`: all state, VSYNC/waits, input (key buffer, repeat, direction reading, key wait), palette (tone, fades, color tone, flash, shake), window frames, text, selection cursor, message window, gold window, common game rules | 21, 22 §6, 23 §1 |
+| `field.cpp` | Map loading/entry, drawing, hero movement, NPCs, move commands, tick, vehicles, encounters, battle invocation, event triggering and start/end, main loop | 21 |
+| `flow.cpp` | Startup, title, new game, save/load, debug start options, `createEngine` | 21, 20 §9 |
+| `hooks.h` | Interfaces between the field engine and the event/menu/battle modules (see below) | — |
+| `events.h/.cpp` | Event interpreter: all commands, labels, branch result table, skipping, STOP, game-over check | 22 |
+| `menus.h/.cpp` | Field menu and submenus, field item/magic use, shops, inns, debug menu, shared list/status windows | 23 |
+| `battle.h`, `battle.cpp`, `battle_calc.cpp` | Battle: transition, layout, commands, AI, formulas, status effects, counters, transformation, rewards, defeat | 24 |
 
-Owners may add files (e.g. `events_*.cpp`; CMake picks up `src/d2/*.cpp` automatically). Keep owner-specific
-state in a struct in your own file or as a minimal addition to `Game` (to avoid concurrent edits, put additions
-to `game.h` in the per-owner section at the end).
+New files in `src/d2/` are picked up by CMake automatically.
 
 ## Hooks (`hooks.h`)
 
@@ -91,19 +87,9 @@ int  battle(Game& g, int group, int gameOverMode);                // 24 (include
 String constants (strings built into RPG.EXE, such as 「ニューゲーム」 ("New Game")) are written in UTF-8 and
 converted to SJIS with `core::utf8ToSjis()`.
 
-## Status of the provisional implementations
-
-- `events.cpp`: **fully implemented** (all chapter 22 commands, labels, branch result table, skipping, STOP,
-  game-over check). For unit tests it exposes `events.h` (`runScript`, `evalCondition`, `skipTo`,
-  `moveWaitTicks`). Questions are in `docs/questions_d2_events.md`.
-- `menus.cpp`: opens the menu and closes it immediately. Shops and inns do nothing.
-- `battle.cpp`: performs only the 24 §4.5 cleanup and returns victory.
-
 ## Tests
 
-- `tests/test_d2.cpp` (acceptance points of chapters 20 and 21).
-- Comparison with reference screens: run all 23 games with
-  `-k "60 shot:01_title 30 z 30 z 150 shot:02_start z 70 z 70 shot:03_after_ok x 60 shot:04_menu x 60 r*40 l*40 shot:05_walk" -n 1500`
-  and compare pixels against `reference_shots/<game>/`. Currently 01_title matches for all games, and dino,
-  keep and knuckle match on all 5 shots. The remaining differences are due to unimplemented event commands
-  (choices, pictures, color tone, etc.).
+- `tests/test_d2.cpp` (data, field, flow), `tests/test_d2_events.cpp`, `tests/test_d2_menus.cpp`,
+  `tests/test_d2_battle.cpp`: acceptance points of chapters 20–24.
+- Reference-screen comparison: `tools/run_all_refs.sh` runs every sample game with the reference script and
+  compares pixels against the spec's `reference_shots/`. All D2 games with references match on all 5 shots.
