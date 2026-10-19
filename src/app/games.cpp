@@ -1,7 +1,5 @@
 #include "app/games.h"
 
-#include <sys/stat.h>
-
 #include <algorithm>
 #include <cstring>
 
@@ -46,15 +44,20 @@ EngineKind detectGame(const std::string& dir) {
 }
 
 static std::string baseName(std::string p) {
-  while (p.size() > 1 && p.back() == '/') p.pop_back();
-  auto k = p.rfind('/');
+  while (p.size() > 1 && (p.back() == '/' || p.back() == '\\')) p.pop_back();
+  auto k = p.find_last_of("/\\");
   return k == std::string::npos ? p : p.substr(k + 1);
 }
 
 static std::string relPath(const std::string& start, const std::string& p) {
   std::string s = start;
-  while (s.size() > 1 && s.back() == '/') s.pop_back();
-  if (p.compare(0, s.size(), s) == 0 && p.size() > s.size() && p[s.size()] == '/') return p.substr(s.size() + 1);
+  while (s.size() > 1 && (s.back() == '/' || s.back() == '\\')) s.pop_back();
+  if (p.compare(0, s.size(), s) == 0 && p.size() > s.size() && (p[s.size()] == '/' || p[s.size()] == '\\')) {
+    std::string r = p.substr(s.size() + 1);
+    for (auto& c : r)
+      if (c == '\\') c = '/';
+    return r;
+  }
   return std::string();
 }
 
@@ -81,9 +84,8 @@ std::vector<GameEntry> scanGames(const std::string& start, int maxDepth) {
     std::sort(names.begin(), names.end());
     for (auto& n : names) {
       if (n.empty() || n[0] == '.') continue;
-      const std::string p = dir + (dir.back() == '/' ? "" : "/") + n;
-      struct stat st;
-      if (::lstat(p.c_str(), &st) != 0 || S_ISLNK(st.st_mode) || !S_ISDIR(st.st_mode)) continue;
+      const std::string p = core::joinPath(dir, n);
+      if (core::isSymlink(p) || !core::isDirectory(p)) continue;
       stack.push_back({p, depth + 1});
     }
   }

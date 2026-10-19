@@ -1,0 +1,100 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (x86_64)
+            os: ubuntu-22.04
+            package: linux-x86_64
+            cmake_args: ''
+          - name: Windows (x64)
+            os: windows-2022
+            package: windows-x64
+            cmake_args: -A x64 -DOPENDT_VENDOR_SDL=ON
+          - name: macOS (universal)
+            os: macos-14
+            package: macos-universal
+            cmake_args: -DOPENDT_VENDOR_SDL=ON "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev
+
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        # Tests that need sample game data are reported as skipped (no game data in CI).
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="${GITHUB_SHA::7}"; fi
+          NAME="opendt-${VERSION}-${{ matrix.package }}"
+          cmake --install build --config Release --prefix "stage/${NAME}"
+          mv "stage/${NAME}/bin/"* "stage/${NAME}/"
+          rmdir "stage/${NAME}/bin"
+          cp README.md LICENSE "stage/${NAME}/"
+          mkdir -p "stage/${NAME}/licenses"
+          cp third_party/ymfm/LICENSE "stage/${NAME}/licenses/ymfm-LICENSE.txt"
+          if [[ "${{ matrix.package }}" == linux-* ]]; then
+            tar -C stage -czf "${NAME}.tar.gz" "${NAME}"
+            echo "ASSET=${NAME}.tar.gz" >> "$GITHUB_ENV"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            (cd stage && 7z a -tzip "../${NAME}.zip" "${NAME}" > /dev/null)
+            echo "ASSET=${NAME}.zip" >> "$GITHUB_ENV"
+          else
+            (cd stage && zip -qry "../${NAME}.zip" "${NAME}")
+            echo "ASSET=${NAME}.zip" >> "$GITHUB_ENV"
+          fi
+          ls -la "stage/${NAME}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opendt-${{ matrix.package }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "OpenDT $GITHUB_REF_NAME" --generate-notes

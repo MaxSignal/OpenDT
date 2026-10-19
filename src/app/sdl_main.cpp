@@ -10,8 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <unistd.h>
-#include <climits>
+#include <filesystem>
 
 #include "app/games.h"
 #include "core/host.h"
@@ -236,12 +235,25 @@ void usage() {
   std::fprintf(stderr, "usage: opendt [GAMEDIR | FOLDER] [--no-title] [--scale N] [--fullscreen] [--mute] [-v]\n");
 }
 
-std::string exeDir(const char* argv0) {
-  char buf[PATH_MAX];
-  ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-  std::string p = n > 0 ? std::string(buf, size_t(n)) : std::string(argv0);
-  auto k = p.rfind('/');
-  return k == std::string::npos ? "." : p.substr(0, k);
+// Directory of the executable (UTF-8), used when the current directory is unusable (spec 01 §7.5).
+std::string exeDir() {
+  std::string r;
+  if (char* b = SDL_GetBasePath()) {
+    r = b;
+    SDL_free(b);
+  }
+  return r.empty() ? std::string(".") : r;
+}
+
+// Default folder: the current directory, unless it is empty or a filesystem root (e.g. when started from a
+// desktop shortcut or a macOS app bundle); then the executable's directory.
+std::string defaultFolder() {
+  const std::string cwd = core::currentDir();
+  if (!cwd.empty()) {
+    const std::filesystem::path p = std::filesystem::u8path(cwd);
+    if (p != p.root_path()) return cwd;
+  }
+  return exeDir();
 }
 
 }  // namespace
@@ -272,13 +284,7 @@ int main(int argc, char** argv) {
     } else
       folder = a;
   }
-  if (folder.empty()) {
-    char cwd[PATH_MAX];
-    if (getcwd(cwd, sizeof(cwd)) && std::strlen(cwd) > 0 && std::strcmp(cwd, "/") != 0)
-      folder = cwd;
-    else
-      folder = exeDir(argv[0]);
-  }
+  if (folder.empty()) folder = defaultFolder();
   if (!core::isDirectory(folder)) {
     std::fprintf(stderr, "error: %s is not a directory\n", folder.c_str());
     return 1;

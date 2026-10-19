@@ -5,7 +5,7 @@ is organized, and the clean-room rules every contribution must follow.
 
 ## Building and testing
 
-Requirements: a C++17 compiler, CMake 3.16 or later, zlib, and SDL2 (for the desktop player).
+Requirements: a C++17 compiler, CMake 3.16 or later, and SDL2 for the desktop player (or `-DOPENDT_VENDOR_SDL=ON` to build it from source). CI builds and tests Linux, Windows and macOS on every push (`.github/workflows/build.yml`).
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -14,8 +14,9 @@ build/unit_tests
 ```
 
 Tests that use game data read it from `$OPENDT_SAMPLES` (default `./samples`, laid out as
-`<root>/games/<archive>/…` and `<root>/d1/<name>/…`) and write scratch files to `$OPENDT_TMP` (default
-`/tmp`). No game data is included in the repository.
+`<root>/games/<archive>/…` and `<root>/d1/<name>/…`) and write scratch files to `$OPENDT_TMP` (default:
+the system temporary directory). No game data is included in the repository. Without the sample games, the tests
+that need them are reported as skipped; CI runs in this mode.
 
 `tools/run_all_refs.sh` runs every sample game through the headless runner and compares the screenshots pixel by
 pixel with the reference screens. It needs `OPENDT_REF` set to the `reference_shots` directory from the
@@ -36,8 +37,8 @@ clean-room specification; `BIN` and `OUT` override the runner binary and output 
 | `tools` | Reference-comparison scripts, font/table generators, DOSBox-X observation harness | — |
 | `third_party` | ymfm | — |
 
-For the internals of the D2 engine (files, hooks, state, helpers, control flow), see
-[docs/d2_architecture.md](docs/d2_architecture.md).
+For how the pieces fit together, see the architecture documentation in [docs/architecture/](docs/architecture/README.md):
+an overview, the platform layer, the music driver, and the D1 and D2 engines.
 
 Keep changes to `src/core` and `src/app` minimal and avoid breaking the other modules.
 
@@ -46,7 +47,7 @@ Keep changes to `src/core` and `src/app` minimal and avoid breaking the other mo
 OpenDT is a clean-room implementation. To keep it that way, contributors must follow these rules:
 
 1. **Do not read other reimplementations.** Do not look at the source code of, or information about, other
-   reimplementations of these engines (for example OpenDante98), and do not use information about the
+   reimplementations of these engines, and do not use information about the
    internals of the original software found on the Internet.
 2. **Do not disassemble the original executables.** Do not disassemble, decompile or otherwise analyze the
    binaries of RPG.EXE, MUSIC.COM or other original executables. The only exceptions are the byte reads for

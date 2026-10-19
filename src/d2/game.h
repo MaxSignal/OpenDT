@@ -1,4 +1,4 @@
-// D2 engine core: state, helpers and field (spec 21). See docs/d2_architecture.md.
+// D2 engine core: state, helpers and field (spec 21). See docs/architecture/d2.md.
 #pragma once
 #include <cstdint>
 #include <string>

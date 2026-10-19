@@ -35,6 +35,18 @@ bool tryReadFile(const std::string& root, const std::string& rel, std::vector<ui
 bool writeFileAbs(const std::string& path, const std::vector<uint8_t>& data);
 std::vector<std::string> listDir(const std::string& path);  // names only, excluding . and ..
 
+// Portable host file helpers. All paths are UTF-8 strings on every platform.
+FILE* openFile(const std::string& path, const char* mode);  // fopen with a UTF-8 path
+bool isSymlink(const std::string& path);
+bool makeDirs(const std::string& path);                      // mkdir -p
+void removeAll(const std::string& path);                     // rm -rf (errors ignored)
+bool copyTree(const std::string& from, const std::string& to);  // recursive copy into `to`
+std::string currentDir();                                    // empty on failure
+std::string joinPath(const std::string& a, const std::string& b);
+// Command-line arguments as UTF-8 (on Windows taken from the wide command line; elsewhere argv as is).
+// Also switches the Windows console to UTF-8 output.
+std::vector<std::string> utf8Args(int argc, char** argv);
+
 // 48-byte palette file (spec 01 §6.3): 16 x (R,G,B) & 0x0F.
 void loadPalette48(const std::vector<uint8_t>& data, uint8_t out[16][3]);
 

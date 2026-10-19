@@ -111,6 +111,7 @@ TEST(d2ev_skip_search) {
 }
 
 TEST(d2ev_variables_clamp) {
+  if (!t::needSamples()) return;
   Fixture f;
   Cmd c;
   c.op(0x04, 0, {2, 50}).op(0x05, 0, {2, 60}).op(0x04, 0, {103, 10}).op(0x06, 0, {3, 20}).op(0x07, 0, {4, 5});
@@ -121,6 +122,7 @@ TEST(d2ev_variables_clamp) {
 }
 
 TEST(d2ev_labels) {
+  if (!t::needSamples()) return;
   Fixture f;
   // recorded label: loop until var0 >= 3
   Cmd c;
@@ -136,6 +138,7 @@ TEST(d2ev_labels) {
 }
 
 TEST(d2ev_condition_false_skips_to_6f) {
+  if (!t::needSamples()) return;
   Fixture f;
   Cmd c;
   c.op(0x5A, 0, {0, 10, 0, 0, 0}).op(0x04, 1, {7, 1}).op(0x63, 1).op(0x6F, 0).op(0x04, 0, {8, 1});
@@ -162,6 +165,7 @@ static std::vector<uint8_t> yesNoScript() {
 }
 
 TEST(d2ev_yes_no_branch) {
+  if (!t::needSamples()) return;
   {
     Fixture f;
     f.host.script = [](long fr) {
@@ -187,6 +191,7 @@ TEST(d2ev_yes_no_branch) {
 }
 
 TEST(d2ev_choice_cancel_item) {
+  if (!t::needSamples()) return;
   // choice with ".B" cancel item: cancel selects index 1
   Fixture f;
   f.host.script = [](long fr) {
@@ -210,6 +215,7 @@ TEST(d2ev_choice_cancel_item) {
 }
 
 TEST(d2ev_nested_results_by_depth) {
+  if (!t::needSamples()) return;
   // depth-0 yes/no result 0 and depth-1 yes/no result 1 must not interfere
   Fixture f;
   int presses = 0;
@@ -244,6 +250,7 @@ TEST(d2ev_nested_results_by_depth) {
 }
 
 TEST(d2ev_hp_mp_rules) {
+  if (!t::needSamples()) return;
   Fixture f;
   d2::Member& m = f.g.members[0];
   m.hp = 10;
@@ -264,6 +271,7 @@ TEST(d2ev_hp_mp_rules) {
 }
 
 TEST(d2ev_game_over_check) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.st.partyCount = 1;
   f.g.st.party[0] = 0;
@@ -287,6 +295,7 @@ TEST(d2ev_game_over_check) {
 }
 
 TEST(d2ev_warp_points) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.st.warpCount = 0;
   Cmd c;
@@ -301,6 +310,7 @@ TEST(d2ev_warp_points) {
 }
 
 TEST(d2ev_conditions) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.st.partyCount = 0;
   uint8_t any[5] = {20, 0x0C, 0, 0, 0}, all[5] = {20, 0x0D, 0, 0, 0};
@@ -320,6 +330,7 @@ TEST(d2ev_conditions) {
 // ---- commands used by the sample games (spec 22 §8) ----
 
 TEST(d2ev_switches) {
+  if (!t::needSamples()) return;
   Fixture f;
   Cmd c;
   c.op(0x02, 0, {5, 0}).op(0x02, 0, {0xE8, 0x03}).op(0x02, 0, {0xE9, 0x03}).op(0x02, 0, {6, 0}).op(0x03, 0, {6, 0});
@@ -330,6 +341,7 @@ TEST(d2ev_switches) {
 }
 
 TEST(d2ev_noop_commands) {
+  if (!t::needSamples()) return;
   // 0x74.., 0x40, standalone 0x65/0x69/0x70 only skip their argument length
   Fixture f;
   Cmd c;
@@ -341,6 +353,7 @@ TEST(d2ev_noop_commands) {
 }
 
 TEST(d2ev_text_lines_and_window) {
+  if (!t::needSamples()) return;
   // 0x01 takes at most three 0x65 lines; "\^" in any line suppresses the final key wait
   MapFixture f;
   f.host.limit = 3000;
@@ -357,6 +370,7 @@ TEST(d2ev_text_lines_and_window) {
 }
 
 TEST(d2ev_text_controls_timing) {
+  if (!t::needSamples()) return;
   // "\." waits 400 ms (22.6 VSYNC), "\!" waits for release then press
   MapFixture f;
   f.host.limit = 3000;
@@ -378,6 +392,7 @@ TEST(d2ev_text_controls_timing) {
 }
 
 TEST(d2ev_items_and_gold) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.st.gold = 999990;
   Cmd c;
@@ -394,6 +409,7 @@ TEST(d2ev_items_and_gold) {
 }
 
 TEST(d2ev_equip_commands) {
+  if (!t::needSamples()) return;
   Fixture f;
   int weapon = -1;
   for (int i = 0; i < 255 && weapon < 0; ++i)
@@ -415,6 +431,7 @@ TEST(d2ev_equip_commands) {
 }
 
 TEST(d2ev_exp_and_level) {
+  if (!t::needSamples()) return;
   Fixture f;
   d2::Member& m = f.g.members[0];
   Cmd c;
@@ -445,6 +462,7 @@ TEST(d2ev_exp_and_level) {
 }
 
 TEST(d2ev_hp_recover_build_difference) {
+  if (!t::needSamples()) return;
   for (int b = 0; b < 2; ++b) {
     Fixture f;
     f.g.build = b == 0 ? d2::Build::B9710 : d2::Build::B9703;
@@ -462,6 +480,7 @@ TEST(d2ev_hp_recover_build_difference) {
 }
 
 TEST(d2ev_status_commands) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.st.partyCount = 2;
   f.g.st.party[0] = 0;
@@ -492,6 +511,7 @@ TEST(d2ev_status_commands) {
 }
 
 TEST(d2ev_flags_and_escape_point) {
+  if (!t::needSamples()) return;
   Fixture f;
   std::memcpy(f.g.st.curBgm, "FIELD\0\0\0", 9);
   f.g.st.escBgm[8] = 0x5A;  // 0x30 sets only the 8 name characters
@@ -515,6 +535,7 @@ TEST(d2ev_flags_and_escape_point) {
 }
 
 TEST(d2ev_bgm_commands) {
+  if (!t::needSamples()) return;
   Fixture f;
   std::memcpy(f.g.st.curBgm, "FIELD\0\0\0", 9);
   std::memcpy(f.g.st.prevBgm, "OLD\0\0\0\0\0", 9);
@@ -546,6 +567,7 @@ TEST(d2ev_bgm_commands) {
 }
 
 TEST(d2ev_fade_timing) {
+  if (!t::needSamples()) return;
   Fixture f;
   f.g.frameCounter = 77;
   Cmd c;
@@ -573,6 +595,7 @@ TEST(d2ev_fade_timing) {
 }
 
 TEST(d2ev_flash_and_shake) {
+  if (!t::needSamples()) return;
   Fixture f;
   std::vector<int> tones, offs;
   f.host.onVsync = [&](const core::Screen& s) {
@@ -596,6 +619,7 @@ TEST(d2ev_flash_and_shake) {
 }
 
 TEST(d2ev_wait_command) {
+  if (!t::needSamples()) return;
   Fixture f;
   Cmd c;
   c.op(0x13, 0, {10}).op(0x13, 0, {0});
@@ -604,6 +628,7 @@ TEST(d2ev_wait_command) {
 }
 
 TEST(d2ev_tone_change) {
+  if (!t::needSamples()) return;
   MapFixture f;
   Cmd c;
   c.op(0x36, 0, {4, 0});
@@ -632,6 +657,7 @@ TEST(d2ev_tone_change) {
 }
 
 TEST(d2ev_erase_place_swap) {
+  if (!t::needSamples()) return;
   MapFixture f(3, 9, 9);  // dino MAP003: events 0 (3,2), 1 (2,3), 7 (9,5), 8 (8,6)
   d2::EventRec* e0 = f.g.ev(0);
   d2::EventRec* e1 = f.g.ev(1);
@@ -669,6 +695,7 @@ TEST(d2ev_erase_place_swap) {
 }
 
 TEST(d2ev_map_move_and_event_commands) {
+  if (!t::needSamples()) return;
   MapFixture f(3, 9, 9);
   std::memcpy(f.g.run_.savedBattleBgm, "SAVED\0\0\0", 9);
   Cmd c;
@@ -689,6 +716,7 @@ TEST(d2ev_map_move_and_event_commands) {
 }
 
 TEST(d2ev_hero_move_commands) {
+  if (!t::needSamples()) return;
   MapFixture f;
   f.g.st.dir = 8;
   Cmd c;
@@ -720,6 +748,7 @@ TEST(d2ev_hero_move_commands) {
 }
 
 TEST(d2ev_key_input_wait_0e) {
+  if (!t::needSamples()) return;
   MapFixture f;
   f.host.limit = 3000;
   f.host.script = [](long fr) {
@@ -735,6 +764,7 @@ TEST(d2ev_key_input_wait_0e) {
 }
 
 TEST(d2ev_stop_aborts_in_test_play) {
+  if (!t::needSamples()) return;
   MapFixture f;
   f.host.script = [](long fr) {
     core::InputState s;
@@ -761,6 +791,7 @@ TEST(d2ev_stop_aborts_in_test_play) {
 }
 
 TEST(d2ev_title_and_quit) {
+  if (!t::needSamples()) return;
   Fixture f;
   Cmd c;
   c.op(0x61, 0).op(0x04, 0, {0, 1});
@@ -785,6 +816,7 @@ TEST(d2ev_title_and_quit) {
 }
 
 TEST(d2ev_game_over_after_0x2a) {
+  if (!t::needSamples()) return;
   MapFixture f;
   f.host.limit = 5000;
   f.host.script = [](long fr) {
@@ -807,6 +839,7 @@ TEST(d2ev_game_over_after_0x2a) {
 }
 
 TEST(d2ev_choice_window_layout) {
+  if (!t::needSamples()) return;
   // items of 2 and 5 bytes: w = 5, x = 0x200 - 40, window (x,0x50) (0x230-x) x 72; no cancel item
   MapFixture f;
   f.host.limit = 3000;
@@ -837,6 +870,7 @@ TEST(d2ev_choice_window_layout) {
 }
 
 TEST(d2ev_consecutive_pictures) {
+  if (!t::needSamples()) return;
   // spec 22 §8 0x3A / §9-14: no field is shown between consecutive pictures
   MapFixture f;
   f.host.limit = 5000;
@@ -858,6 +892,7 @@ TEST(d2ev_consecutive_pictures) {
 }
 
 TEST(d2ev_more_conditions) {
+  if (!t::needSamples()) return;
   MapFixture f(3, 9, 9);
   d2::Game& g = f.g;
   g.st.pendingEvent = 7;
@@ -907,6 +942,7 @@ TEST(d2ev_more_conditions) {
 }
 
 TEST(d2ev_warp_bytes_v11) {
+  if (!t::needSamples()) return;
   // spec 22 §8 0x2D/0x2E (v1.1): adding does not clear the slot (BGM bytes 9..12 keep old values),
   // the first 8 BGM bytes are the current name zero-filled, deleting does not clear the freed slot.
   Fixture f;
@@ -942,6 +978,7 @@ TEST(d2ev_warp_bytes_v11) {
 }
 
 TEST(d2ev_choice_width_ignores_dot) {
+  if (!t::needSamples()) return;
   // spec 22 §8 0x09 step 4 (v1.1): widths are measured without the leading '.'.
   // Items "AB" and ".CDEFG" (cancel): w = 5 -> x = 0x200 - 40 = 0x1D8.
   MapFixture f;

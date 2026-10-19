@@ -46,6 +46,7 @@ TEST(d1_signed_arg) {
 }
 
 TEST(d1_load_all_and_events) {
+  if (!t::needSamples()) return;
   long totalEvents = 0;
   int badPages = 0;
   for (const char* g : kD1Games) {
@@ -83,6 +84,7 @@ TEST(d1_load_all_and_events) {
 }
 
 TEST(d1_agasa_start_info) {
+  if (!t::needSamples()) return;
   d1::Data db;
   db.load(sample("games/agasa/agasa"));
   CHECK_EQ(db.start.screen, 80);
@@ -97,6 +99,7 @@ TEST(d1_agasa_start_info) {
 }
 
 TEST(d1_earth_save_roundtrip) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("d1/earth/EARTH"), opt);
@@ -118,6 +121,7 @@ TEST(d1_earth_save_roundtrip) {
 }
 
 TEST(d1_variance) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -129,6 +133,7 @@ TEST(d1_variance) {
 }
 
 TEST(d1_inventory_rules) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -148,6 +153,7 @@ TEST(d1_inventory_rules) {
 }
 
 TEST(d1_level_up) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -241,6 +247,7 @@ std::vector<uint8_t> oneEvent(int screen, int x, int y, int gfx, int move, int t
 
 // Spec 10 acceptance 4: screen 705 -> block 8, in-block screen (1,6), offset 11760.
 TEST(d1_map_block_offset) {
+  if (!t::needSamples()) return;
   d1::Data db;
   db.load(sample("games/agasa/agasa"));
   const std::vector<uint8_t> raw = core::readFile(sample("games/agasa/agasa"), "MAP08.DAT");
@@ -251,6 +258,7 @@ TEST(d1_map_block_offset) {
 
 // Spec 11 §5.5: page conditions (item held or equipped, party mask, switch, gold; no condition -> not chosen).
 TEST(d1_page_conditions) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -283,6 +291,7 @@ TEST(d1_page_conditions) {
 
 // Spec 11 §7.2: wrap at 40 columns, kinsoku hang, page-full wait.
 TEST(d1_message_flow) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   h.held.fast = true;  // key waits finish in one frame
   core::StartOptions opt;
@@ -311,6 +320,7 @@ TEST(d1_message_flow) {
 
 // Spec 11 §6.7 / acceptance 11: counter starts at 0, first step re-rolls (seed 1 -> 346 % 16 + 16 = 26).
 TEST(d1_encounter_counter) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);  // agasa: no random encounters anywhere
@@ -329,6 +339,7 @@ TEST(d1_encounter_counter) {
 
 // Spec 11 §6.8 / acceptance 15: walking poison uses the recorded max HP, clamps 1..10, never kills.
 TEST(d1_walk_poison) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -350,6 +361,7 @@ TEST(d1_walk_poison) {
 
 // Spec 11 §11.1: palette modes and offset with clamping.
 TEST(d1_palette_modes) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -379,6 +391,7 @@ TEST(d1_palette_modes) {
 // Spec 11 §6.6 / acceptance 13: a key (kind 6, value k) opens door graphic 0x3A+k on a bump, SFX 24,
 // and rewrites page 0's graphic in the block buffer.
 TEST(d1_door_and_key) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -408,6 +421,7 @@ TEST(d1_door_and_key) {
 
 // Spec 11 §8.2 0x65 '9': erasing an already erased object still closes the message window.
 TEST(d1_event_erase_twice_closes_window) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   h.held.fast = true;
   core::StartOptions opt;
@@ -425,6 +439,7 @@ TEST(d1_event_erase_twice_closes_window) {
 // Spec 12 §10.3 step 4: after more than 10 failed tries the action is "stand still" and the
 // selection ends (trait 0x08 / 0x10 do not retarget). Each try draws exactly one number here.
 TEST(d1_enemy_ai_retry_limit) {
+  if (!t::needSamples()) return;
   NullHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -478,6 +493,7 @@ void setLoneEnemy(d1::Game& g, int group, int atk, int exp, int gold) {
 
 // Spec 12 §17.1 / acceptance 15: victory gives the total exp and gold to each living member.
 TEST(d1_battle_victory_rewards) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   h.held.fast = true;
   h.toggleOk = true;
@@ -498,6 +514,7 @@ TEST(d1_battle_victory_rewards) {
 
 // Spec 12 §17.2 / 11 §10.2 / acceptance 18: battle wipe while the field game-over check passes.
 TEST(d1_battle_wipe_vs_game_over) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   h.held.fast = true;
   h.toggleOk = true;
@@ -519,6 +536,7 @@ TEST(d1_battle_wipe_vs_game_over) {
 
 // Spec 11 §1.3 (v1.1, D1-Q3): a key-press wait looks at the fast key only when it starts.
 TEST(d1_wait_press_fast_checked_once) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -542,6 +560,7 @@ TEST(d1_wait_press_fast_checked_once) {
 // Spec 11 §9.5.1 step 2 (v1.1, D1-Q8): the wait after 「魔法は使えません」
 // ("magic cannot be used") ignores the fast key.
 TEST(d1_no_magic_wait_ignores_fast) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);
@@ -561,6 +580,7 @@ TEST(d1_no_magic_wait_ignores_fast) {
 // Spec 11 §8.2 (v1.1, D1-Q1): 0x76/0x77 with an argument outside '0'-'7' do nothing (the message
 // window stays open) and advance 2 bytes.
 TEST(d1_event_move_bad_argument) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   h.held.fast = true;
   core::StartOptions opt;
@@ -583,6 +603,7 @@ TEST(d1_event_move_bad_argument) {
 // Spec 12 §1.2 (v1.1, D1-Q6): an empty party slot as the current target is never revived and its
 // status / abilities are never written; result values follow the §13.4 table.
 TEST(d1_battle_empty_slot_target) {
+  if (!t::needSamples()) return;
   ScriptHost h;
   core::StartOptions opt;
   d1::Game g(h, sample("games/agasa/agasa"), opt);

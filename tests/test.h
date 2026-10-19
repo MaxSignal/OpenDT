@@ -48,6 +48,7 @@ struct Reg {
   } while (0)
 
 #include <cstdlib>
+#include <filesystem>
 namespace t {
 // Root of the sample games (env OPENDT_SAMPLES, default "samples" relative to the working directory).
 // Layout: <root>/games/<archive>/... and <root>/d1/<name>/...
@@ -57,10 +58,22 @@ inline std::string samples() {
   if (s.back() != '/') s += '/';
   return s;
 }
-// Scratch directory for tests (env OPENDT_TMP, default /tmp).
+// True when the sample games are available. Tests that need them start with `if (!t::needSamples()) return;`
+// so that they are reported as skipped (not failed) when the samples are absent, e.g. in CI.
+inline bool& skipped() {
+  static bool s = false;
+  return s;
+}
+bool samplesAvailable();
+inline bool needSamples() {
+  if (samplesAvailable()) return true;
+  skipped() = true;
+  return false;
+}
+// Scratch directory for tests (env OPENDT_TMP, default: the system temporary directory).
 inline std::string tmp() {
   const char* e = std::getenv("OPENDT_TMP");
-  std::string s = (e && *e) ? e : "/tmp";
+  std::string s = (e && *e) ? std::string(e) : std::filesystem::temp_directory_path().u8string();
   if (s.back() != '/') s += '/';
   return s;
 }

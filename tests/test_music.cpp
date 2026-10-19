@@ -582,27 +582,18 @@ TEST(music_ver221_suppression) {
   }
 }
 
-#include <dirent.h>
-#include <sys/stat.h>
-
 static void collectMml(const std::string& dir, std::vector<std::string>& out) {
-  DIR* d = opendir(dir.c_str());
-  if (!d) return;
-  while (dirent* e = readdir(d)) {
-    std::string n = e->d_name;
-    if (n == "." || n == "..") continue;
-    std::string p = dir + "/" + n;
-    struct stat st;
-    if (lstat(p.c_str(), &st) != 0) continue;
-    if (S_ISDIR(st.st_mode)) {
+  for (auto& n : core::listDir(dir)) {
+    std::string p = core::joinPath(dir, n);
+    if (core::isSymlink(p)) continue;
+    if (core::isDirectory(p)) {
       collectMml(p, out);
-    } else if (S_ISREG(st.st_mode) && n.size() > 4) {
+    } else if (core::isRegularFile(p) && n.size() > 4) {
       std::string ext = n.substr(n.size() - 4);
       for (auto& ch : ext) ch = music::upper(ch);
       if (ext == ".MML") out.push_back(p);
     }
   }
-  closedir(d);
 }
 
 TEST(music_compile_all_samples) {
@@ -616,11 +607,7 @@ TEST(music_compile_all_samples) {
   int bad = 0;
   for (auto& f : files) {
     std::vector<uint8_t> text;
-    FILE* fp = std::fopen(f.c_str(), "rb");
-    if (!fp) continue;
-    int c;
-    while ((c = std::fgetc(fp)) != EOF) text.push_back(uint8_t(c));
-    std::fclose(fp);
+    if (!core::tryReadFile(f, "", text)) continue;
     auto s = music::compileMml(text);
     if (s.errorCount) {
       if (bad < 5) std::fprintf(stderr, "  %s: %s\n", f.c_str(), s.errors.empty() ? "" : s.errors[0].c_str());
@@ -675,8 +662,7 @@ TEST(music_v11_19_ssg_pitch) {
   // Render SSG period 477 (O4 C) and 283 (O4 A) through the real player and measure zero crossings.
   const std::string dir = t::tmp() + "music_pitch_test";
   std::string bgm = std::string(dir) + "/BGM";
-  std::string cmd = std::string("mkdir -p ") + bgm;
-  if (std::system(cmd.c_str()) != 0) return;
+  if (!core::makeDirs(bgm)) return;
   const char* songs[2] = {"4:T120 V15 O4 Q8 L1 {C}\n", "4:T120 V15 O4 Q8 L1 {A}\n"};
   const double expect[2] = {261.6, 441.0};
   for (int k = 0; k < 2; ++k) {

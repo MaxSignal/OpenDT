@@ -12,7 +12,11 @@
 namespace {
 const std::string kSamples = (t::samples() + "games/");
 
-bool have(const std::string& p) { return core::isDirectory(p); }
+bool have(const std::string& p) {
+  if (core::isDirectory(p)) return true;
+  t::skipped() = true;  // sample game missing: report as skipped
+  return false;
+}
 
 struct NullHost : core::Host {
   void vsync(const core::Screen&) override {}
@@ -223,10 +227,8 @@ TEST(d2_save_roundtrip_05yakata) {
   CHECK_EQ(s1.size(), size_t(d2::kSaveSize));
   // our save, then load it into a fresh game and save again: byte identical
   const std::string tmp = (t::tmp() + "d2_save_test");
-  {
-    std::string cmd = "rm -rf " + tmp + " && mkdir -p " + tmp + " && cp -r '" + root + "'/. " + tmp + "/";
-    CHECK(std::system(cmd.c_str()) == 0);
-  }
+  core::removeAll(tmp);
+  CHECK(core::copyTree(root, tmp));
   auto g2 = std::make_unique<d2::Game>(host, tmp, opt);
   CHECK(g2->loadSlot(0));
   CHECK(g2->saveSlot(3));
@@ -898,8 +900,8 @@ TEST(d2_save_version_mismatch) {
   RecHost host;
   core::StartOptions opt;
   const std::string tmp = (t::tmp() + "d2_save_ver_test");
-  CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + " && cp -r '" + root + "'/. " + tmp + "/").c_str()) ==
-        0);
+  core::removeAll(tmp);
+  CHECK(core::copyTree(root, tmp));
   std::vector<uint8_t> save;
   CHECK(core::tryReadFile(tmp, "SAVE1.DAT", save));
   if (save.size() != size_t(d2::kSaveSize)) return;
@@ -948,7 +950,8 @@ TEST(d2_default_map_and_short_picture) {
   CHECK(std::string(m->hdr.battleBgm) == "BATTLE");
   CHECK_EQ(m->zones[0], 0xFF);
   const std::string tmp = (t::tmp() + "d2_short_pct");
-  CHECK(std::system(("rm -rf " + tmp + " && mkdir -p " + tmp + "/EBD_PCT").c_str()) == 0);
+  core::removeAll(tmp);
+  CHECK(core::makeDirs(tmp + "/EBD_PCT"));
   CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT001.EBD", std::vector<uint8_t>(128047, 0x11)));
   CHECK(core::writeFileAbs(tmp + "/EBD_PCT/PCT002.EBD", std::vector<uint8_t>(128048, 0x11)));
   d2::Picture pic;
@@ -963,8 +966,8 @@ TEST(d2_default_map_and_short_picture) {
 namespace {
 std::string tmpGameDir(const char* name) {
   const std::string dir = std::string((t::tmp() + "d2_v11_")) + name;
-  std::string cmd = "rm -rf " + dir + " && mkdir -p " + dir + "/DAT_MAP " + dir + "/EBD_BKG";
-  if (std::system(cmd.c_str()) != 0) return std::string();
+  core::removeAll(dir);
+  if (!core::makeDirs(dir + "/DAT_MAP") || !core::makeDirs(dir + "/EBD_BKG")) return std::string();
   return dir;
 }
 std::vector<uint8_t> mapFile(int n, size_t cut) {

@@ -5,9 +5,6 @@
 //   mmlplay GAMEDIR --bgm N [-t SEC] [-o out.wav]   play BGM/BGMnn.MML (D1 numbering)
 //   mmlplay GAMEDIR --sfx N [-t SEC] [-o out.wav]   play SOUND.DAT effect @N
 //   --after-fade: set fade 15 and stop before the request (D1 BGM switch carry-over, spec 02 §3.3)
-#include <dirent.h>
-#include <sys/stat.h>
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -30,25 +27,18 @@ std::string upper(std::string s) {
 }
 
 void walk(const std::string& dir, std::vector<std::string>& out) {
-  DIR* d = opendir(dir.c_str());
-  if (!d) return;
-  std::vector<std::string> names;
-  while (dirent* e = readdir(d)) {
-    if (!std::strcmp(e->d_name, ".") || !std::strcmp(e->d_name, "..")) continue;
-    names.push_back(e->d_name);
-  }
-  closedir(d);
+  std::vector<std::string> names = core::listDir(dir);
   std::sort(names.begin(), names.end());
   for (auto& n : names) {
-    std::string p = dir + "/" + n;
-    struct stat st;
-    if (lstat(p.c_str(), &st) != 0) continue;
-    if (S_ISDIR(st.st_mode))
+    std::string p = core::joinPath(dir, n);
+    if (core::isSymlink(p)) continue;
+    if (core::isDirectory(p))
       walk(p, out);
-    else if (S_ISREG(st.st_mode)) {
+    else if (core::isRegularFile(p)) {
       std::string u = upper(n);
       if (u.size() > 4 && u.substr(u.size() - 4) == ".MML") {
-        std::string parent = upper(dir.substr(dir.rfind('/') + 1));
+        const size_t k = dir.find_last_of("/\\");
+        std::string parent = upper(k == std::string::npos ? dir : dir.substr(k + 1));
         if (parent == "BGM" || parent == "DAT_BGM") out.push_back(p);
       }
     }
@@ -62,12 +52,7 @@ int batch(const std::string& dir) {
   std::map<std::string, int> uniq;
   for (auto& f : files) {
     std::vector<uint8_t> text;
-    FILE* fp = std::fopen(f.c_str(), "rb");
-    if (!fp) continue;
-    uint8_t buf[65536];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof buf, fp)) > 0) text.insert(text.end(), buf, buf + n);
-    std::fclose(fp);
+    if (!core::tryReadFile(f, "", text)) continue;
     uniq[std::string(text.begin(), text.end())]++;
     music::Song s = music::compileMml(text);
     if (s.errorCount) {
@@ -85,8 +70,10 @@ int batch(const std::string& dir) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
-  if (argc >= 3 && std::string(argv[1]) == "--batch") return batch(argv[2]);
+int main(int argc_, char** argv_) {
+  const std::vector<std::string> argv = core::utf8Args(argc_, argv_);
+  const int argc = int(argv.size());
+  if (argc >= 3 && argv[1] == "--batch") return batch(argv[2]);
   if (argc < 3) {
     std::fprintf(stderr,
                  "usage: mmlplay --batch DIR\n"
@@ -102,18 +89,18 @@ int main(int argc, char** argv) {
   for (int i = 2; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "-t" && i + 1 < argc)
-      secs = std::atof(argv[++i]);
+      secs = std::atof(argv[++i].c_str());
     else if (a == "-o" && i + 1 < argc)
       out = argv[++i];
     else if (a == "--after-fade")
       afterFade = true;
     else if (a == "--bgm" && i + 1 < argc) {
       req.kind = core::SoundRequest::PlayNumber;
-      req.value = std::atoi(argv[++i]);
+      req.value = std::atoi(argv[++i].c_str());
       haveReq = true;
     } else if (a == "--sfx" && i + 1 < argc) {
       req.kind = core::SoundRequest::Sfx;
-      req.value = std::atoi(argv[++i]);
+      req.value = std::atoi(argv[++i].c_str());
       haveReq = true;
     } else {
       req.kind = core::SoundRequest::PlayFile;

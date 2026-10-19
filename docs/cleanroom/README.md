@@ -4,7 +4,7 @@ This directory preserves the working records from the clean-room development of 
 document **how** the implementation was produced. They are not user or developer documentation, and they
 describe the state of the project at the time they were written (October 2026). For current documentation, see
 the [README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md) and
-[docs/d2_architecture.md](../d2_architecture.md).
+[docs/architecture/](../architecture/README.md).
 
 ## Process
 

@@ -160,26 +160,31 @@ void usage() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc_, char** argv_) {
+  const std::vector<std::string> args = core::utf8Args(argc_, argv_);
+  const int argc = int(args.size());
   std::string gameDir, scriptText, outDir = ".", wavPath, gamesDir;
   long maxFrames = 600;
   core::StartOptions opt;
   bool haveGames = false;
   for (int i = 1; i < argc; ++i) {
-    std::string a = argv[i];
+    std::string a = args[i];
     auto need = [&](const char* what) -> std::string {
       if (i + 1 >= argc) {
         std::fprintf(stderr, "missing argument for %s\n", what);
         usage();
         std::exit(2);
       }
-      return argv[++i];
+      return args[++i];
     };
     if (a == "-s") {
-      std::ifstream f(need("-s"));
-      std::stringstream ss;
-      ss << f.rdbuf();
-      scriptText += ss.str() + "\n";
+      std::vector<uint8_t> data;
+      const std::string path = need("-s");
+      if (!core::tryReadFile(path, "", data)) {
+        std::fprintf(stderr, "cannot read %s\n", path.c_str());
+        return 2;
+      }
+      scriptText += std::string(data.begin(), data.end()) + "\n";
     } else if (a == "-k") {
       scriptText += need("-k") + "\n";
     } else if (a == "-o") {

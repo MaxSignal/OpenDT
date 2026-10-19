@@ -1,5 +1,5 @@
 // D2 menus / shops / inns / field item & magic use (spec 23) acceptance checks.
-#include <unistd.h>
+#include <filesystem>
 
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +17,11 @@
 
 namespace {
 const std::string kSamples = (t::samples() + "games/");
-bool have(const std::string& p) { return core::isDirectory(p); }
+bool have(const std::string& p) {
+  if (core::isDirectory(p)) return true;
+  t::skipped() = true;  // sample game missing: report as skipped
+  return false;
+}
 
 struct ScriptEnd {};
 
@@ -88,16 +92,26 @@ std::unique_ptr<d2::Game> startGame(ScriptHost& h, const std::string& root, bool
 
 [[maybe_unused]] std::string sj(const char* u) { return core::utf8ToSjis(u); }
 
-// Symlink farm of a game root so tests can write SAVEn.DAT without touching the sample.
+// Symlink farm of a game root so tests can write SAVEn.DAT without touching the sample. Falls back to
+// copying where symlinks are not available (e.g. Windows without the privilege).
 std::string farm(const std::string& root, const std::string& name) {
+  namespace fs = std::filesystem;
   const std::string tmp = (t::tmp() + "d2menu_") + name;
-  std::string cmd = "rm -rf '" + tmp + "' && mkdir -p '" + tmp + "'";
-  if (std::system(cmd.c_str()) != 0) return "";
+  core::removeAll(tmp);
+  if (!core::makeDirs(tmp)) return "";
   for (auto& n : core::listDir(root)) {
     std::string u = n;
     for (auto& c : u) c = char(std::toupper(uint8_t(c)));
     if (u.rfind("SAVE", 0) == 0) continue;
-    if (::symlink((root + "/" + n).c_str(), (tmp + "/" + n).c_str()) != 0) return "";
+    const std::string src = core::joinPath(root, n), dst = core::joinPath(tmp, n);
+    std::error_code ec;
+    if (core::isDirectory(src))
+      fs::create_directory_symlink(fs::absolute(fs::u8path(src)), fs::u8path(dst), ec);
+    else
+      fs::create_symlink(fs::absolute(fs::u8path(src)), fs::u8path(dst), ec);
+    if (ec && !(core::isDirectory(src) ? core::copyTree(src, dst)
+                                      : fs::copy_file(fs::u8path(src), fs::u8path(dst), ec)))
+      return "";
   }
   return tmp;
 }

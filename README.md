@@ -1,5 +1,7 @@
 # OpenDT
 
+[![Build](https://github.com/MaxSignal/OpenDT/actions/workflows/build.yml/badge.svg)](https://github.com/MaxSignal/OpenDT/actions/workflows/build.yml)
+
 OpenDT is a player that runs PC-9801 games made with "RPGツクール Dante98" (RPG Tsukuru Dante98, "D1", 1992) and
 "RPGツクール Dante98 II" (RPG Tsukuru Dante98 II, "D2", 1996) on modern systems. It is not an emulator: it reads
 the game's data files directly and reimplements the behavior of the original game runtime (RPG.EXE) and FM
@@ -14,29 +16,46 @@ sound driver (MUSIC.COM).
 - A built-in game browser: point it at a folder and pick a game.
 - Developed and tested on Linux (game logic is verified with the headless runner). The SDL2 desktop player should work on any platform SDL2 supports.
 
+## Downloads
+
+Prebuilt binaries for Windows (x64), macOS (universal: Apple silicon and Intel) and Linux (x86_64) are attached to
+each [release](https://github.com/MaxSignal/OpenDT/releases), and builds of the latest commit are available as
+artifacts of the [Build workflow](https://github.com/MaxSignal/OpenDT/actions/workflows/build.yml).
+
+- **Windows / macOS:** self-contained; SDL2 is linked statically.
+- **Linux:** needs the SDL2 runtime library (e.g. `sudo apt install libsdl2-2.0-0`).
+- **macOS:** the binaries are not signed. If macOS refuses to open `opendt`, remove the quarantine attribute
+  (`xattr -d com.apple.quarantine opendt`) or allow it under System Settings → Privacy & Security.
+- `opendt` is a command-line program: start it from a terminal with a game folder (see [Running](#running)), or
+  place it in a folder that contains your games and start it from there.
+
 ## Getting started
 
 ### Dependencies
 
 - A C++17 compiler
 - CMake 3.16 or later
-- zlib
-- SDL2 (needed only for the desktop player; without it, only the headless tools are built)
+- SDL2 (needed only for the desktop player; without it, only the headless tools are built). Alternatively,
+  configure with `-DOPENDT_VENDOR_SDL=ON` to download and link SDL2 statically (this is how the Windows and macOS
+  release builds are made).
 
 On Debian/Ubuntu:
 
 ```
-sudo apt install build-essential cmake zlib1g-dev libsdl2-dev
+sudo apt install build-essential cmake libsdl2-dev
 ```
+
+On macOS with Homebrew: `brew install cmake sdl2`. On Windows, use Visual Studio 2022 (or newer) and configure
+with `-DOPENDT_VENDOR_SDL=ON`.
 
 ### Building
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
+cmake --build build --config Release --parallel
 ```
 
-This produces:
+(With Visual Studio and Xcode generators the executables are placed in `build/Release/`.) This produces:
 
 | Executable | Description |
 |---|---|
@@ -110,7 +129,7 @@ Tests that need game data read it from your own copies; configure them with envi
 | Variable | Used by | Meaning | Default |
 |---|---|---|---|
 | `OPENDT_SAMPLES` | unit tests, `run_all_refs.sh` | Root of the sample games, laid out as `<root>/games/<archive>/…` and `<root>/d1/<name>/…` | `./samples` |
-| `OPENDT_TMP` | unit tests | Scratch directory | `/tmp` |
+| `OPENDT_TMP` | unit tests | Scratch directory | the system temporary directory |
 | `OPENDT_REF` | `run_all_refs.sh` | The `reference_shots` directory from the clean-room specification (required) | — |
 | `BIN` | `run_all_refs.sh` | Headless runner to use | `build/opendt-headless` |
 | `OUT` | `run_all_refs.sh` | Output directory for screenshots and logs | `/tmp/opendt_refs` |
@@ -126,7 +145,8 @@ of this process (development rules, observation notes, questions to the specific
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions must follow the clean-room rules described there.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions must follow the clean-room rules described there. The
+developer documentation is in [docs/](docs/README.md).
 
 ## License
 
